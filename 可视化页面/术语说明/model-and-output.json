@@ -1,0 +1,855 @@
+[
+  {
+    "id": "temperature",
+    "term": "temperature（温度）",
+    "aliases": [
+      "temperature",
+      "Temperature",
+      "采样温度"
+    ],
+    "chapters": [
+      "1.2"
+    ],
+    "plain": "调整下一步候选 Token 的概率差距。低温度让高概率候选更集中，高温度让分布更平缓；它改变采样方式，不会补知识、修上下文或让模型更聪明。",
+    "analogy": {
+      "title": "改变抽签的权重",
+      "description": "四种签的原始权重是 50、30、15、5。低温度加大强弱差距，高温度缩小差距。签上的内容没有因此变正确，改变的只是抽中机会。"
+    },
+    "steps": [
+      {
+        "title": "取得当前分数",
+        "description": "模型为下一步各候选 Token 给出 logits，记为 z。这里讨论单步分布，不是整段回答的正确率。"
+      },
+      {
+        "title": "按温度缩放",
+        "description": "当 T>0 时，先计算 z/T，再做 softmax：q_i=exp(z_i/T)/Σ_j exp(z_j/T)。"
+      },
+      {
+        "title": "用概率等价计算",
+        "description": "若已有 T=1 的概率 p=softmax(z)，则 q_i=p_i^(1/T)/Σ_j p_j^(1/T)。这是同一缩放公式的代数等价形式。"
+      },
+      {
+        "title": "从新分布采样",
+        "description": "按 q 选择下一 Token，再重复下一步。实际参数是否支持、是否生效及与其他采样器的顺序，须查当前模型的能力配置。"
+      }
+    ],
+    "example": {
+      "title": "50/30/15/5 的温度变化",
+      "code": "p = [0.50, 0.30, 0.15, 0.05]\nT = 0.5  # 此公式要求 T > 0\nweights = [x ** (1 / T) for x in p]\nq = [x / sum(weights) for x in weights]",
+      "input": "候选 A/B/C/D 的基准概率为 50% / 30% / 15% / 5%；仅改变温度，暂不做 top_p 截断。",
+      "output": "T=1：50% / 30% / 15% / 5%；T=0.5：约 68.49% / 24.66% / 6.16% / 0.68%；T=2：约 37.90% / 29.36% / 20.76% / 11.98%。",
+      "explanation": "这些是教学用的单步 Token 概率，不是工单队列的可信置信度。概率幂变换来自 logits/T 与 softmax 的等价推导；示例中的分数四舍五入后可能有微小合计误差。"
+    },
+    "pitfalls": [
+      "把高温度当作更聪明，或用低温度修复错误任务与缺失事实。",
+      "把 T=0 直接代入除法，或声称接口允许 T=0 就能跨服务、版本和设备严格复现；零温度的处理方式须查具体实现。",
+      "把笔记示例的参数范围当成所有模型通用保证；某些模式不支持或不使用这项参数，盲目同时修改 temperature 与 top_p 也难以解释效果。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "参数职责与常见误用"
+      },
+      {
+        "title": "Hugging Face：TemperatureLogitsWarper",
+        "url": "https://huggingface.co/docs/transformers/internal/generation_utils#transformers.TemperatureLogitsWarper"
+      },
+      {
+        "title": "Hugging Face 官方温度缩放实现",
+        "url": "https://github.com/huggingface/transformers/blob/v5.17.0/src/transformers/generation/logits_process.py"
+      }
+    ]
+  },
+  {
+    "id": "top-p",
+    "term": "top_p（核采样）",
+    "aliases": [
+      "top_p",
+      "Top-p",
+      "top-p",
+      "核采样"
+    ],
+    "chapters": [
+      "1.2"
+    ],
+    "plain": "按概率从高到低排候选，保留累计概率达到阈值的最小前缀，再在保留集合中重新归一化采样。阈值约束概率总和，不固定候选数量。",
+    "analogy": {
+      "title": "挑够一篮子的概率",
+      "description": "候选按大小排队，你只拿到累计概率够 80% 为止。每步的候选分布会变化，所以有时拿两项，有时要拿更多项；这不是固定选前两个。"
+    },
+    "steps": [
+      {
+        "title": "按概率降序排列",
+        "description": "取得当前采样步骤的候选概率，并从高到低排序。若还用了温度等处理，演示必须说明 top_p 看到的是哪一份分布。"
+      },
+      {
+        "title": "累加到阈值",
+        "description": "从最大项开始累加，保留累计概率达到或超过 top_p 的最小候选前缀，包括跨过阈值的最后一项。"
+      },
+      {
+        "title": "重算并采样",
+        "description": "移除其余项，将保留概率除以它们的总和后采样。下一 Token 的分布改变时重新筛选，保留数量随之改变。"
+      }
+    ],
+    "example": {
+      "title": "top_p=0.8 保留前两项",
+      "code": "p = [0.50, 0.30, 0.15, 0.05]\ntop_p = 0.8\n# 已按概率降序，0.50 + 0.30 = 0.80\nkept = p[:2]\nq = [x / sum(kept) for x in kept]\n# q == [0.625, 0.375]",
+      "input": "只演示核采样：候选 A/B/C/D 为 50% / 30% / 15% / 5%，temperature 保持基准分布。",
+      "output": "保留 A、B；累计概率为 80%；重新归一化后 A=62.5%、B=37.5%，C 与 D 不参与本步采样。",
+      "explanation": "第一项只有 50%，未达阈值；加入第二项正好达 80%，因此停止增加。示例切片只表示这组已算好的结果，不是通用算法。阈值若为 0.9，本分布需保留前三项；不同分布也会得到不同数量。"
+    },
+    "pitfalls": [
+      "把 top_p=0.8 理解为取词表前 80% 的数量，或认为每个候选本身都必须有 80% 概率。",
+      "把这次保留两项误写成永远保留两个；固定数量筛选属于另一种思路。",
+      "假定任意模型和推理模式都接受相同范围与处理顺序，或同时盲调 temperature 与 top_p 后把结果变化归因于单个参数。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "参数职责与常见误用"
+      },
+      {
+        "title": "Hugging Face：TopPLogitsWarper",
+        "url": "https://huggingface.co/docs/transformers/internal/generation_utils#transformers.TopPLogitsWarper"
+      },
+      {
+        "title": "Hugging Face：生成参数",
+        "url": "https://huggingface.co/docs/transformers/main/main_classes/text_generation"
+      }
+    ]
+  },
+  {
+    "id": "max-tokens",
+    "term": "max_tokens（输出预算）",
+    "aliases": [
+      "max_tokens"
+    ],
+    "chapters": [
+      "1.2"
+    ],
+    "plain": "为一次生成设置 Token 数量上限，用于控制输出预算和截断风险。它不是目标字数，也不保证答案完成；具体参数名、计数范围与支持情况由 API 和模型决定。",
+    "analogy": {
+      "title": "给结果预留纸张",
+      "description": "你给工单决策预留一页纸，模型可能提前写完，也可能写到一半用尽。纸用尽时，半个表格不能假装是完整表格；应先调整空间或任务大小。"
+    },
+    "steps": [
+      {
+        "title": "查能力并设上限",
+        "description": "在 Adapter 的模型能力配置中选择受支持的输出参数，并校验。不要把某一 API 的 max_tokens 直接复制到所有模型。"
+      },
+      {
+        "title": "为生成留空间",
+        "description": "把输入上下文与输出预算一起规划，并检查独立输出上限。推理 Token 是否包含在某个输出参数内，也要按具体 API 确认。"
+      },
+      {
+        "title": "先检查完成状态",
+        "description": "读取停止原因或未完成状态。达到长度上限时，先识别输出截断，不能只看到 JSON 解析错误就盲目重试。"
+      },
+      {
+        "title": "调整预算后收口",
+        "description": "按任务缩短输入、提高受支持的输出预算或拆小任务；仍无法完成则返回明确失败，不能把半个对象交给下游。"
+      }
+    ],
+    "example": {
+      "title": "JSON 写到一半",
+      "input": "教学假设：工单对象需要约 120 个输出 Token，但本次仅预留 80；具体长度须用目标模型的计数方式估算。",
+      "output": "兼容 Chat Completions 的一类结果可能是 finish_reason=length，文本停在 summary 字段中间，括号尚未闭合。",
+      "explanation": "首先诊断长度预算，而不是让模型在相同不足预算下“修格式”。不同 API 可能使用 max_completion_tokens、max_output_tokens 或 max_new_tokens，这些名称及计数语义需要 Adapter 核对，不能视为无条件同义替换。"
+    },
+    "pitfalls": [
+      "把上限当成必须生成的数量，或用字符数直接填入 Token 预算。",
+      "用很小预算强迫结构化对象截断，再将截断错误送入普通 Repair Loop 无限修复。",
+      "把 max_tokens 的参数名和含义当成跨 API 标准；例如某些接口已有其他输出预算字段，推理 Token 的计数也可能不同。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "参数职责与常见误用"
+      },
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "截断处理"
+      },
+      {
+        "title": "OpenAI：Chat Completions 输出预算字段",
+        "url": "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+      },
+      {
+        "title": "Hugging Face：max_new_tokens",
+        "url": "https://huggingface.co/docs/transformers/main/main_classes/text_generation"
+      }
+    ]
+  },
+  {
+    "id": "token",
+    "term": "Token（模型计量单位）",
+    "aliases": [
+      "Token",
+      "Tokens",
+      "token",
+      "tokens"
+    ],
+    "chapters": [
+      "1.2"
+    ],
+    "plain": "模型处理文本时使用的编码单位，由 tokenizer 决定。一个字、词或符号可能对应一个或多个 Token；输入长度、输出预算与使用量都应按目标模型的规则计量。",
+    "analogy": {
+      "title": "各自有分法的积木",
+      "description": "同一段文字换一套积木，可能被切成不同块。数汉字像数整句上的字形，数 Token 像数模型实际用到的积木，两者不能固定一比一换算。"
+    },
+    "steps": [
+      {
+        "title": "选对计数规则",
+        "description": "确认当前模型使用的 tokenizer 与消息封装规则。不能把一个模型的分词结果默认为另一模型相同。"
+      },
+      {
+        "title": "统计完整输入",
+        "description": "计入任务消息、系统规则、工具 Schema 等实际发送内容，检查上下文与输出预算；估算方法应覆盖消息协议的额外开销。"
+      },
+      {
+        "title": "回写实际使用量",
+        "description": "调用结束后让 Adapter 记录 Provider 提供的 usage 与截断状态，用于预算、追踪和复盘；无法取得时明确标为未知。"
+      }
+    ],
+    "example": {
+      "title": "长度统计用对尺子",
+      "code": "# 伪代码：计数方法必须匹配当前模型\nrendered = build_model_input(messages, tools)\ninput_tokens = count_model_tokens(rendered)\n# 结束后另行读取 Provider 的 usage",
+      "input": "工单文字“订单 A10086 已付款但状态未更新”，连同系统规则和工具协议一起进入模型。",
+      "output": "不能仅用 len(用户文字) 得到真实输入 Token 数；应估算完整请求，并用调用使用量核对。",
+      "explanation": "这里没有指定一个真实 tokenizer，因此不编造这段中文会被切成几块。示例说明计数边界：用户可见文字只是完整模型输入的一部分；输出 Token 与输入 Token 也要分别记录。"
+    },
+    "pitfalls": [
+      "声称一个 Token 永远等于一个汉字、一个英文单词或固定字节数。",
+      "只数用户文字，漏掉规则、历史、工具协议和消息封装。",
+      "在流异常结束、usage 未取得时，把未知使用量记为零或凭文本长度伪造实际计费量。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "三份预算"
+      },
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "代码演示"
+      },
+      {
+        "title": "Hugging Face：Tokenizer",
+        "url": "https://huggingface.co/docs/transformers/main_classes/tokenizer"
+      }
+    ]
+  },
+  {
+    "id": "context-window",
+    "term": "Context Window（上下文窗口）",
+    "aliases": [
+      "Context Window",
+      "context window",
+      "上下文窗口"
+    ],
+    "chapters": [
+      "1.2"
+    ],
+    "plain": "一次模型决策可使用的上下文容量，要按模型规则计量并为输出留空间。容量大不等于记忆可靠；应保留规则、当前证据和必要历史，避免无关内容挤占预算。",
+    "analogy": {
+      "title": "有限大小的工作台",
+      "description": "工作台能放很多文件，但把旧记录全铺开会挤掉正在处理的订单证据，也会占去写结果的位置。台面够大，只说明能放下，不说明每张纸都有用。"
+    },
+    "steps": [
+      {
+        "title": "取得模型预算",
+        "description": "读取当前模型的上下文限制和独立输出限制，不把营销名称、tokenizer 的缺省大数或另一个模型配置当作真实容量。"
+      },
+      {
+        "title": "分配三份空间",
+        "description": "分别为系统指令与可信规则、当前任务证据、模型输出分配空间。历史只保留与本轮决策相关的内容。"
+      },
+      {
+        "title": "检查再发请求",
+        "description": "估算完整输入并预留输出。超出限制时压缩或移除无关历史、保留关键证据，必要时拆分任务。"
+      },
+      {
+        "title": "观察实际结果",
+        "description": "Adapter 记录使用量、请求 ID、模型和截断状态；下次装配依据真实证据修正，不能依赖“模型应该还记得”。"
+      }
+    ],
+    "example": {
+      "title": "预留输出后才算能装下",
+      "input": "教学假定：当前模型总预算为 4000 Token，完整输入已估算为 3200，计划输出 1000。",
+      "output": "3200+1000=4200，超出这项假定预算；先把完整输入降到 3000 以内，或在业务允许时减少输出需求。",
+      "explanation": "数字只演示预算计算，不代表任何模型规格。实际还需遵守独立输出上限和 API 的其他计量限制；不应为腾位置而删除可信规则与当前订单关键证据。"
+    },
+    "pitfalls": [
+      "把长上下文当成免费、永久的记忆，默认模型知道上一轮未传入的结果。",
+      "把历史、搜索和工具结果无限堆进去，导致当前证据被无关内容竞争。",
+      "只检查输入能否装下，不为结构化输出预留空间；或无视模型的独立输出上限。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "四、为什么上下文不是越多越好？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "三份预算"
+      },
+      {
+        "title": "Hugging Face：Tokenizer 的长度配置",
+        "url": "https://huggingface.co/docs/transformers/main_classes/tokenizer"
+      }
+    ]
+  },
+  {
+    "id": "json",
+    "term": "JSON（数据文本格式）",
+    "aliases": [
+      "JSON",
+      "json"
+    ],
+    "chapters": [
+      "1.2",
+      "1.5"
+    ],
+    "plain": "一种数据文本语法，可表示对象、数组、字符串、数字、布尔值和 null。能被 JSON 解析器读取只说明语法合法，不说明字段齐全、业务正确、事实可靠或动作获准。",
+    "analogy": {
+      "title": "表格印得清楚",
+      "description": "表格字迹清楚、格线完整，方便机器读取，但也可能漏填团队或写错订单。看得懂表格与允许办理业务，是两道不同的检查。"
+    },
+    "steps": [
+      {
+        "title": "取得完整候选文本",
+        "description": "先检查调用是否完成、是否拒答或截断。不要把未完成内容当成正常 JSON 结果。"
+      },
+      {
+        "title": "解析语法",
+        "description": "使用 JSON 解析器读取文本，损坏的引号、括号等进入语法错误分支；不要靠关键词猜字段。"
+      },
+      {
+        "title": "继续验收协议",
+        "description": "解析成功后仍需检查 Schema、业务组合和可信证据，只有完整合格对象才能进入下游。"
+      }
+    ],
+    "example": {
+      "title": "合法 JSON 仍不够",
+      "code": "import json\nraw = '{\"action\":\"route_to_team\",\"team\":\"billing\"}'\ndata = json.loads(raw)",
+      "input": "{\"action\":\"route_to_team\",\"team\":\"billing\"}",
+      "output": "JSON 语法可解析；若完整 TicketDecision 要求 summary 和 question，这份对象仍未通过协议验收。",
+      "explanation": "解析器只把合法数据文本转换为程序数据。它不会自动补齐字段，也不会证明应该转支付团队，更不会赋予退款或建单权限。"
+    },
+    "pitfalls": [
+      "看到大括号就认为它是合法 JSON，或用正则抽出少数字段绕过完整解析。",
+      "认为 JSON 语法合法就等于满足指定 Schema。",
+      "从损坏或校验失败的对象里挑几项，再补默认业务动作拼成“成功结果”。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "2.1 为什么要先统一术语？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "5.1 一次校验到底要检查哪三层？"
+      },
+      {
+        "title": "RFC 8259：JSON 数据交换格式",
+        "url": "https://www.rfc-editor.org/info/rfc8259/"
+      }
+    ]
+  },
+  {
+    "id": "json-schema",
+    "term": "JSON Schema（结构契约）",
+    "aliases": [
+      "JSON Schema",
+      "JSONSchema",
+      "Schema",
+      "schema"
+    ],
+    "chapters": [
+      "1.2",
+      "1.5"
+    ],
+    "plain": "用数据规则描述允许的字段、类型、必填项、枚举等，让程序检查对象是否符合接口。Schema 不是数据本身；通过它不等于事实或权限正确，模型 API 也可能只支持其中一部分。",
+    "analogy": {
+      "title": "表单的填表规则",
+      "description": "规则写清必须填哪些栏、团队只能选哪些值、能不能多写一栏。它能拦住“不合表格”，但不会独自判断用户订单是否真的已支付。"
+    },
+    "steps": [
+      {
+        "title": "从消费方定义字段",
+        "description": "先确认下游真正需要哪些值，区分必填、可空、枚举及额外字段策略，可信身份和审批状态不要交给模型生成。"
+      },
+      {
+        "title": "产生并发送契约",
+        "description": "可从同一 Pydantic Model 导出 JSON Schema。发送给模型前还需确认 Provider 支持的 Schema 子集。"
+      },
+      {
+        "title": "服务端重新验收",
+        "description": "用应用侧协议验证返回对象，并执行未能投影到生成约束里的业务组合规则，避免手写两份定义发生漂移。"
+      }
+    ],
+    "example": {
+      "title": "一个缩小的字段契约",
+      "code": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"action\": {\"enum\": [\"route_to_team\", \"ask_user\"]},\n    \"team\": {\"enum\": [\"billing\", \"account\", \"technical\", null]}\n  },\n  \"required\": [\"action\", \"team\"],\n  \"additionalProperties\": false\n}",
+      "input": "{\"action\":\"ask_user\",\"team\":\"billing\"}",
+      "output": "这份对象符合上面的缩小结构示例，但按原文业务协议，ask_user 不应携带 team，还必须提供 question。",
+      "explanation": "示例不是完整 TicketDecision，刻意演示结构与组合规则的分工。完整 JSON Schema 标准能表达某些条件关系，但 Python 自定义校验规则未必能完整导出，也未必落在模型 API 支持子集内，所以应用侧仍要验收。"
+    },
+    "pitfalls": [
+      "仅在 properties 中声明字段就以为它必填；必填需明确 required，可空与缺失也不同。",
+      "把 JSON Schema 标准的全部表达能力当成任意 Provider 都支持。",
+      "把“通过 Schema”解释为事实正确，或反过来声称 JSON Schema 完全不能表达跨字段条件。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "3.3 为什么 Pydantic 应该成为协议的单一来源？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "4.3 为什么已经使用原生 Structured Output，服务端仍要保留验收入口？"
+      },
+      {
+        "title": "JSON Schema 官方：对象与必填、额外字段、条件规则",
+        "url": "https://json-schema.org/understanding-json-schema/reference/object"
+      }
+    ]
+  },
+  {
+    "id": "pydantic",
+    "term": "Pydantic（Python 协议建模与校验）",
+    "aliases": [
+      "Pydantic",
+      "pydantic"
+    ],
+    "chapters": [
+      "1.2",
+      "1.5"
+    ],
+    "plain": "在 Python 中用类型和约束定义数据模型，生成 Schema、校验输入并得到类型对象。它执行工程师写出的规则，不会自动知道真实订单、用户权限或业务判断是否有证据。",
+    "analogy": {
+      "title": "执行填表规则的验收员",
+      "description": "Schema 像规则纸，Pydantic 像按规则验表的程序。它能指出字段问题，但验收员没有查订单数据库，就不能把纸上“已支付”当成外部事实。"
+    },
+    "steps": [
+      {
+        "title": "用 Model 定义协议",
+        "description": "声明类型、枚举、长度和额外字段策略；业务分支需要时增加 model_validator 等自定义校验。"
+      },
+      {
+        "title": "从同一定义导出",
+        "description": "调用 model_json_schema 生成结构说明，减少生成端和消费端手写两份协议的漂移。"
+      },
+      {
+        "title": "解析并运行规则",
+        "description": "返回后调用 model_validate_json；通过才得到类型对象，失败保留具体错误位置，不能交出半成品。"
+      },
+      {
+        "title": "补齐可信检查",
+        "description": "Pydantic 通过后，事实与权限仍要依赖可信上下文和业务代码；自定义组合规则也不保证已完整进入模型原生约束。"
+      }
+    ],
+    "example": {
+      "title": "工单分流类型边界",
+      "code": "from typing import Literal\nfrom pydantic import BaseModel, ConfigDict\nclass TicketRoute(BaseModel):\n    model_config = ConfigDict(strict=True, extra=\"forbid\")\n    queue: Literal[\"account\", \"payment\", \"technical\"]\n    priority: Literal[\"low\", \"normal\", \"high\"]\n    reason: str\nroute = TicketRoute.model_validate_json(raw)\nschema = TicketRoute.model_json_schema()",
+      "input": "raw = {\"queue\":\"account\",\"priority\":\"normal\",\"reason\":\"密码重置后仍无法登录\"} 对应的 JSON 文本。",
+      "output": "字段规则通过时得到 TicketRoute 对象；queue=\"finance\" 则无法得到合格对象。",
+      "explanation": "这是 Pydantic 2 风格的缩小示例，具体使用需对应安装版本。设置 strict 与 extra 是显式协议选择；本例没有定义跨字段判断，也没有验证用户陈述是否真实，不能宣称所有业务都已验收。"
+    },
+    "pitfalls": [
+      "把 Python 类型注解本身当成已执行的校验；未经校验的任意字典不能直接进入下游。",
+      "默认校验可能做类型转换；严格模式仍有与 JSON 输入类型有关的规则，应按字段与版本验证。",
+      "把 Pydantic 通过当成业务动作获准，或以为所有 model_validator 规则都已等价投影进模型 API 的 Schema。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "3.2 怎样把字段规则写进 Pydantic Model？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "3.3 为什么 Pydantic 应该成为协议的单一来源？"
+      },
+      {
+        "title": "Pydantic 官方：Models",
+        "url": "https://pydantic.dev/docs/validation/latest/concepts/models/"
+      },
+      {
+        "title": "Pydantic 官方：Strict Mode",
+        "url": "https://pydantic.dev/docs/validation/latest/concepts/strict_mode/"
+      }
+    ]
+  },
+  {
+    "id": "structured-output",
+    "term": "Structured Output（结构化输出）",
+    "aliases": [
+      "Structured Output",
+      "Structured Outputs",
+      "structured output",
+      "原生 Structured Output",
+      "结构化输出"
+    ],
+    "chapters": [
+      "1.2",
+      "1.5"
+    ],
+    "plain": "让模型输出供程序消费的协议对象。原生能力可在支持范围内约束生成结构，但调用完成、拒答、业务组合、事实和权限仍要由应用侧分别验收。",
+    "analogy": {
+      "title": "按固定表格写建议",
+      "description": "模型按预印表格填写“动作、摘要、团队、问题”，比自由写段落更好处理。但表格里的建议仍可能选错团队，填得规范不代表业务已经办对。"
+    },
+    "steps": [
+      {
+        "title": "先定义业务协议",
+        "description": "由消费方决定字段及允许动作，把可信身份、数据库主键和审批许可留在可信系统中，而不是让模型随意生成。"
+      },
+      {
+        "title": "按能力约束生成",
+        "description": "支持原生 Schema 的 Provider 使用对应接口；仅有 JSON mode 时不能承诺指定 Schema；仅用 Prompt 也不是确定性约束。"
+      },
+      {
+        "title": "检查返回状态",
+        "description": "区分正常完成、拒答和未完成，不能把没有可用解析对象的响应冒充结构化成功。"
+      },
+      {
+        "title": "统一服务端验收",
+        "description": "对实际返回执行完整结构和组合校验，结合可信事实与策略决定能否消费；失败进入有限修复或明确收口。"
+      }
+    ],
+    "example": {
+      "title": "结构合格的候选建议",
+      "input": "工单内容：付款后订单仍显示未支付，订单号 A10086。消费方要求 TicketDecision。",
+      "output": "{\"action\":\"route_to_team\",\"summary\":\"支付后订单状态未更新\",\"team\":\"billing\",\"question\":null}",
+      "explanation": "这份教学候选符合原文的转交字段组合。原生结构约束只帮助形成对象，不能单凭它证明订单已付款、团队选择一定正确或建单已经成功；需要可信证据与下游执行边界。"
+    },
+    "pitfalls": [
+      "把 Prompt 中“只输出 JSON”、JSON mode 和原生 Schema 约束当成同一种保证。",
+      "认为所有 Provider、模型、Schema 关键字和接口都具有相同支持能力。",
+      "拿到类型对象就自动执行退款或建单，忽略拒答、未完成、事实和权限的独立边界。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "4.1 Prompt、JSON mode 和 Structured Output 有什么区别？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "4.3 为什么已经使用原生 Structured Output，服务端仍要保留验收入口？"
+      },
+      {
+        "title": "OpenAI 官方：Structured model outputs",
+        "url": "https://developers.openai.com/api/docs/guides/structured-outputs"
+      }
+    ]
+  },
+  {
+    "id": "validation",
+    "term": "Validation（输出验收）",
+    "aliases": [
+      "Validation",
+      "validation",
+      "输出校验"
+    ],
+    "chapters": [
+      "1.2",
+      "1.5"
+    ],
+    "plain": "在模型候选与业务消费之间验收返回：语法、字段、组合和事实分别检查。失败必须带明确问题且不提供可用业务对象；结构校验不能替代可信权限与真实证据。",
+    "analogy": {
+      "title": "四道检查门",
+      "description": "第一道看表格能否读，第二道看栏位是否合法，第三道看动作与栏位是否配套，第四道看证据与许可。前一道通过，只能走向下一道，不能直接办理业务。"
+    },
+    "steps": [
+      {
+        "title": "先验收调用状态",
+        "description": "确认正常完成且没有拒答、截断或传输失败；这些不应一概归为输出格式错误。"
+      },
+      {
+        "title": "检查语法和结构",
+        "description": "区分 JSON 解析问题与字段缺失、类型、枚举、额外字段问题，把路径、错误码和说明归一化。"
+      },
+      {
+        "title": "检查字段组合",
+        "description": "转交要有 team 且 question 为 null；追问要有 question 且 team 为 null。任何组合失败都不能返回 decision。"
+      },
+      {
+        "title": "核实事实与权限",
+        "description": "结构通过之后仍检查可信业务证据和消费权限。失败不靠补默认动作掩盖，并选择适合这一失败类型的恢复方式。"
+      }
+    ],
+    "example": {
+      "title": "字段合法，组合错误",
+      "input": "{\"action\":\"ask_user\",\"summary\":\"支付状态需要进一步核实\",\"team\":\"billing\",\"question\":null}",
+      "output": "valid=false，decision=null；问题为：ask_user 需要有效 question，并且 team 必须为 null。",
+      "explanation": "所有字段单独看都可能处于允许类型和值范围，但组合不可用。错误的内部路径和错误码由验收层归一化，不能假定每个 SDK 使用相同名称；不得从失败对象中取 team 驱动下游。"
+    },
+    "pitfalls": [
+      "只返回 False 或一句“格式错误”，导致日志与修复过程不知道哪里错。",
+      "从失败对象提取部分字段并补默认业务动作，制造模型没有做出的合格决策。",
+      "把协议组合错误与真实业务条件失败混成一类，要求模型通过改 JSON 来获得权限或改变事实。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "5.1 一次校验到底要检查哪三层？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "5.2 怎样把校验错误变成程序可以继续处理的数据？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "5.3 怎样证明校验边界覆盖了不同失败路径？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "结构正确 ≠ 内容正确"
+      }
+    ]
+  },
+  {
+    "id": "repair-loop",
+    "term": "Repair Loop（有限输出修复）",
+    "aliases": [
+      "Repair Loop",
+      "repair loop",
+      "repair_loop",
+      "修复循环"
+    ],
+    "chapters": [
+      "1.2",
+      "1.5"
+    ],
+    "plain": "把上次候选及具体协议错误反馈给模型，使用同一 Schema 定向修复，再完整校验。它有次数与预算上限，只生成数据，不自动执行真实业务动作。",
+    "analogy": {
+      "title": "带批注的有限返工",
+      "description": "验收员圈出漏填栏和错误组合，请填表者保持原任务重填；每次都重新验收，返工次数用完就结束。返工不是擅自替用户签字或办理退款。"
+    },
+    "steps": [
+      {
+        "title": "确认适合修复",
+        "description": "字段缺失、类型、枚举和协议组合冲突可修；截断先修预算。认证、网络、权限和真实业务条件错误进入其他治理分支。"
+      },
+      {
+        "title": "反馈具体问题",
+        "description": "保留原任务、上一份候选和错误路径、原因，限定只修协议问题，仍发送同一份 Schema。"
+      },
+      {
+        "title": "每轮重新验收",
+        "description": "修复输出必须再次经过完整校验。只有完整合格对象才能返回，不因第二次生成就降低标准。"
+      },
+      {
+        "title": "耗尽即收口",
+        "description": "区分首次生成与修复次数。max_repairs=2 表示最多三次模型调用；耗尽后按策略查合格缓存或返回 failed。"
+      }
+    ],
+    "example": {
+      "title": "两次修复最多三次调用",
+      "code": "# 伪代码：辅助函数由应用提供\nmax_repairs = 2\nfor index in range(max_repairs + 1):\n    raw = call_model(messages, schema)\n    checked = validate_output(raw)\n    if checked.valid:\n        break  # 只保留合格候选，不执行工具\n    if index == max_repairs:\n        raise StructuredOutputFailure()\n    messages += repair_feedback(raw, checked.issues)",
+      "input": "首次候选为 ask_user，却填写 team=\"billing\" 且 question=null；验收返回明确组合错误。",
+      "output": "修复后候选可为 ask_user、team=null、question=\"请提供支付时间和付款方式？\"，并再次验收；若三次调用仍不合格则明确失败。",
+      "explanation": "代码仅演示生成和校验的有限控制流，模型调用异常由相应调用层处理。修复后的完整对象仍需保留摘要等必填项并通过事实与消费策略检查；循环不创建工单、退款或绕过许可。"
+    },
+    "pitfalls": [
+      "用“格式错了，再来一次”代替具体问题，或让模型重新猜业务事实。",
+      "使用 except Exception 把网络、认证、权限及所有业务失败都送进输出修复。",
+      "无限循环、混淆 max_repairs 与总调用次数，或边修复边执行真实写操作。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "6.1 为什么不能只说“格式错了，请重试”？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "6.2 一个有边界的 repair loop 应该怎样组织？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "6.3 哪些错误适合纠错，哪些错误不应该交给模型？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "截断处理"
+      }
+    ]
+  },
+  {
+    "id": "cache-fallback",
+    "term": "Cache Fallback（合格缓存回退）",
+    "aliases": [
+      "Cache Fallback",
+      "cache fallback",
+      "缓存回退"
+    ],
+    "chapters": [
+      "1.5"
+    ],
+    "plain": "模型有限修复仍失败时，按业务策略考虑复用合格历史结果。必须检查同输入、协议版本、有效期并重新校验，标注降级来源；不合格就失败，不能靠旧结果授权写操作。",
+    "analogy": {
+      "title": "检查旧表格是否还能用",
+      "description": "旧表格必须对应同一任务、同一版规则，还没过期，并重新验收。找到一张形状相似的表格不够；订单状态和权限可能变化，旧表不能当新的执行许可。"
+    },
+    "steps": [
+      {
+        "title": "先检查业务适用性",
+        "description": "只有业务允许历史结果回退才继续；快速变化的订单状态、价格、权限与写操作不能仅因结构合法自动复用。"
+      },
+      {
+        "title": "检查键、版本和时间",
+        "description": "核对当前输入对应的 task_key 与协议版本；时间须可比较、不能在未来，年龄须在允许有效期内。"
+      },
+      {
+        "title": "按当前协议再验收",
+        "description": "即使曾经通过，也要用当前 Model 重新校验，不能跳过字段与组合规则。原文缓存键归一化只是课堂示例，实际要保留业务所需区分。"
+      },
+      {
+        "title": "显式返回来源",
+        "description": "合格时返回 degraded、source=cache；无合格缓存返回 failed、decision=null。调用方仍依据可信事实和权限判断后续动作。"
+      }
+    ],
+    "example": {
+      "title": "修复失败后的降级结果",
+      "input": "教学设定：工单分流首次生成加两次修复仍失败；缓存属于同一输入和 ticket-decision-v1，创建于两分钟前，业务允许的有效期为十分钟。",
+      "output": "时间与当前协议检查均通过后，可返回 status=degraded、source=cache，并保留已重新校验的完整 decision；否则 status=failed、decision=null。",
+      "explanation": "十分钟是教学示例策略，不是通用时效保证。若用户要的是当前订单状态、审批许可或真实退款，即使该缓存格式完好，也不能自动用它替代可信实时检查。"
+    },
+    "pitfalls": [
+      "用相似文本或另一个用户的结果替代同一输入，将原文简化的任务键当成生产隔离保证。",
+      "忽略协议版本、时区、未来时间、过期与当前规则复验。",
+      "把 degraded 隐藏为模型正常成功，或用缓存审批状态自动执行写操作。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "7.1 为什么最终失败也要有稳定协议？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "7.2 缓存满足哪些条件以后才能作为回退？"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "7.3 怎样把有限修复、缓存和最终失败串成一条路径？"
+      }
+    ]
+  },
+  {
+    "id": "stop",
+    "term": "stop（停止序列）",
+    "aliases": [
+      "stop",
+      "Stop",
+      "stop sequence",
+      "停止序列"
+    ],
+    "chapters": [
+      "1.2"
+    ],
+    "plain": "作为请求参数，指定生成遇到哪些文本时停止。它与 finish_reason 的 stop 原因值不同，不能证明业务完成或替代 Run 取消；支持与停止文本保留规则须查接口。",
+    "analogy": {
+      "title": "听到口令就停笔",
+      "description": "你让填表者遇到一个口令就停笔。口令若恰好也是表格中的正常符号，就可能在表格写完前停下；停笔只说明触发了条件，不表示表格验收通过。"
+    },
+    "steps": [
+      {
+        "title": "核对接口支持",
+        "description": "在 Provider 能力配置中确认模型是否支持停止序列，以及序列是否出现在返回文本中，不能套用别的接口规则。"
+      },
+      {
+        "title": "选择不会误撞的标记",
+        "description": "如确实需要，用明确分隔标记；不要随意用括号或正常字段内容做停止条件，避免截断合法数据。"
+      },
+      {
+        "title": "停止后仍要验收",
+        "description": "结合完成状态、文本完整性与输出协议判断能否消费。触发 stop 不替代 Schema、业务组合或事实检查。"
+      }
+    ],
+    "example": {
+      "title": "用闭括号当停止序列",
+      "code": "# 错误配置示例：不是通用推荐\nstop = [\"}\"]\n# 在会去掉停止序列的接口中，JSON 会缺闭括号",
+      "input": "以支持 stop 且不返回停止序列的 Chat Completions 行为为例，候选原本应为 {\"team\":\"billing\"}。",
+      "output": "若遇到 } 就停止且去掉该标记，返回内容可变成 {\"team\":\"billing\"，无法组成完整 JSON。",
+      "explanation": "OpenAI 文档说明所述 stop 参数不把停止序列放进返回文本；其他 Provider 必须单独核对。这个例子展示为什么生成“停下了”仍需验收，并不建议用停止序列代替结构化输出。"
+    },
+    "pitfalls": [
+      "认为停止序列的支持与返回保留方式在所有模型接口上相同。",
+      "用 } 或业务正文常见词做停止序列，意外截断 JSON 或解释。",
+      "把生成停止当成整个 Run 取消、后台工具终止或业务完成的证据。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "截断处理"
+      },
+      {
+        "title": "OpenAI 官方：Chat Completions stop",
+        "url": "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+      },
+      {
+        "title": "Hugging Face：stop_strings",
+        "url": "https://huggingface.co/docs/transformers/main/main_classes/text_generation"
+      }
+    ]
+  },
+  {
+    "id": "finish-reason",
+    "term": "finish_reason（生成停止原因）",
+    "aliases": [
+      "finish_reason",
+      "停止原因"
+    ],
+    "chapters": [
+      "1.2",
+      "1.5"
+    ],
+    "plain": "说明本次生成为什么停止的返回信息。自然结束、长度上限、工具候选等要进入不同分支；它不是业务完成证明。不同接口可能使用其他状态字段，由 Adapter 归一化。",
+    "analogy": {
+      "title": "停笔原因的记录",
+      "description": "“写完了”“纸用完了”“要请工具帮忙”都让人暂时停笔，但后续动作不同。只看到停笔，不能知道表格是否完整，更不能推断退款已经成功。"
+    },
+    "steps": [
+      {
+        "title": "保留并归一化状态",
+        "description": "Adapter 保存 Provider 的停止或未完成信息。兼容 Chat Completions 的 finish_reason 与其他 API 状态不可机械混为同一字段。"
+      },
+      {
+        "title": "按原因分支处理",
+        "description": "length 先排查输出预算；tool_calls 表示产生工具调用候选，仍交 Runtime 处理；拒答或其他未完成进入相应失败分支。"
+      },
+      {
+        "title": "再验证内容与业务",
+        "description": "即使是 stop，也需检查拒答、停止序列和完整协议，再结合可信证据决定下一步，不能直接认定整个 Agent 任务成功。"
+      }
+    ],
+    "example": {
+      "title": "length 不能当格式小错",
+      "input": "兼容 Chat Completions 的候选返回 finish_reason=\"length\"，文本停在 {\"team\":\"billing\"，缺少闭括号。",
+      "output": "统一内部结果应表达输出被截断、没有可消费的 decision；先调整输出预算或任务大小，不按正常成功继续。",
+      "explanation": "finish_reason 的常见兼容值只是接口例子，不是跨 Provider 保证。stop 可能包括自然结束或匹配停止序列；工具请求也只是候选。生成停止原因必须与实际响应内容、拒答和统一验收共同判断。"
+    },
+    "pitfalls": [
+      "认为 finish_reason=stop 就证明业务任务已完成，或 tool_calls 就证明工具已经执行。",
+      "长度截断后忽略预算，在相同配置下反复请求修复 JSON。",
+      "用网络连接关闭代替可信终态，或丢弃 Provider 的原因信息，让 Loop 只能猜测。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "截断处理"
+      },
+      {
+        "title": "第一章学习笔记 · 1.2",
+        "section": "代码演示"
+      },
+      {
+        "title": "第一章学习笔记 · 1.5",
+        "section": "4.3 为什么已经使用原生 Structured Output，服务端仍要保留验收入口？"
+      },
+      {
+        "title": "OpenAI 官方：Chat Completions finish_reason",
+        "url": "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+      }
+    ]
+  }
+]

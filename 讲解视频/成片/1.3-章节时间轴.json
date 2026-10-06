@@ -1,0 +1,265 @@
+{
+  "number": "1.3",
+  "title": "Streaming 流式输出",
+  "subtitle": "让智能体的长任务可观察、可取消、可恢复",
+  "file": "1.3-Streaming 流式输出.mp4",
+  "poster": "1.3-封面.png",
+  "duration": 1622.01925,
+  "durationText": "27:02",
+  "sceneCount": 24,
+  "captionCount": 231,
+  "narrationCharacters": 6839,
+  "voice": "Microsoft Yaoyao",
+  "voiceRate": 0,
+  "speechSampleRate": 16000,
+  "resolution": "1920 × 1080",
+  "fps": 6,
+  "sourceScriptSha256": "1777e72e6e4b9da95f0fe9184f26142d7863b5f6e1ab9bc9e819965e06f41e0b",
+  "scenes": [
+    {
+      "id": "01",
+      "title": "订单查询为什么像卡住",
+      "start": 0.0,
+      "duration": 67.35825,
+      "sourceRefs": [
+        "1.3 开篇：可观察、可取消、可恢复的事件流",
+        "1.3 一、学习目标"
+      ]
+    },
+    {
+      "id": "02",
+      "title": "流式改变的是感知延迟",
+      "start": 67.35825,
+      "duration": 66.21375,
+      "sourceRefs": [
+        "1.3 二、为什么要流，流能带来什么？",
+        "1.3 二、TTFT／Generation Time／End-to-End Latency"
+      ]
+    },
+    {
+      "id": "03",
+      "title": "传文字也传运行事实",
+      "start": 133.572,
+      "duration": 69.11025000000001,
+      "sourceRefs": [
+        "1.3 二、为什么 Agent 比普通聊天更需要 Streaming？",
+        "1.3 二、内容／过程／控制事件"
+      ]
+    },
+    {
+      "id": "04",
+      "title": "不同层的数据单位",
+      "start": 202.68225,
+      "duration": 64.496125,
+      "sourceRefs": [
+        "1.3 三、为什么这些概念不能混用？",
+        "1.3 三、术语表与关键事实"
+      ]
+    },
+    {
+      "id": "05",
+      "title": "把正向事件链串起来",
+      "start": 267.178375,
+      "duration": 68.616,
+      "sourceRefs": [
+        "1.3 三、一条正确的运行主链是什么？",
+        "1.3 三、正向事件流"
+      ]
+    },
+    {
+      "id": "06",
+      "title": "适配器挡住供应商差异",
+      "start": 335.794375,
+      "duration": 66.66425000000001,
+      "sourceRefs": [
+        "1.3 四、为什么不能把供应商 chunk 直接转给前端？",
+        "1.3 四、DeepSeek 流怎样进入 Model Adapter？"
+      ]
+    },
+    {
+      "id": "07",
+      "title": "首内容时间从哪里记",
+      "start": 402.458625,
+      "duration": 66.574875,
+      "sourceRefs": [
+        "1.3 四、TTFT 应该在哪里记录？",
+        "1.3 六、真实 TTFT 与客户端验收"
+      ]
+    },
+    {
+      "id": "08",
+      "title": "运行事件需要稳定身份",
+      "start": 469.0335,
+      "duration": 67.8265,
+      "sourceRefs": [
+        "1.3 五、ModelStreamEvent 和 RunEvent 有什么区别？",
+        "1.3 五、RunEvent 字段与 run_id + seq"
+      ]
+    },
+    {
+      "id": "09",
+      "title": "停止传输不代表成功",
+      "start": 536.86,
+      "duration": 65.896375,
+      "sourceRefs": [
+        "1.3 五、为什么必须有明确终态？",
+        "1.3 八、完成与取消竞态"
+      ]
+    },
+    {
+      "id": "10",
+      "title": "选择合适的传输形态",
+      "start": 602.756375,
+      "duration": 63.918000000000006,
+      "sourceRefs": [
+        "1.3 六、为什么选择 SSE？",
+        "1.3 六、JSON／SSE／WebSocket 对照"
+      ]
+    },
+    {
+      "id": "11",
+      "title": "一条事件帧的边界",
+      "start": 666.674375,
+      "duration": 67.7655,
+      "sourceRefs": [
+        "1.3 六、SSE frame 怎样编码？",
+        "1.3 六、心跳与编码器测试要求"
+      ]
+    },
+    {
+      "id": "12",
+      "title": "创建和订阅要分开",
+      "start": 734.439875,
+      "duration": 65.41425000000001,
+      "sourceRefs": [
+        "1.3 六、为什么创建 Run 和订阅 Run 要分开？",
+        "1.3 六、创建与订阅接口演示"
+      ]
+    },
+    {
+      "id": "13",
+      "title": "代码流式，部署未必流式",
+      "start": 799.8541250000001,
+      "duration": 67.39987500000001,
+      "sourceRefs": [
+        "1.3 六、为什么代码已经 yield，浏览器仍可能最后一次收到？",
+        "1.3 六、部署链缓冲与真实 TTFT"
+      ]
+    },
+    {
+      "id": "14",
+      "title": "中文会跨越读取边界",
+      "start": 867.2540000000001,
+      "duration": 67.03375,
+      "sourceRefs": [
+        "1.3 七、为什么不能把一次 read() 当成一条事件？",
+        "1.3 七、TextDecoder 增量解码"
+      ]
+    },
+    {
+      "id": "15",
+      "title": "拆包粘包都要处理",
+      "start": 934.2877500000002,
+      "duration": 64.25475,
+      "sourceRefs": [
+        "1.3 七、buffer 按空行切 SSE frame",
+        "1.3 七、经过验证的 SSE parser",
+        "1.3 十、拆包与粘包测试"
+      ]
+    },
+    {
+      "id": "16",
+      "title": "去重靠位置，不靠内容",
+      "start": 998.5425000000002,
+      "duration": 67.98525000000001,
+      "sourceRefs": [
+        "1.3 七、为什么客户端还要按 seq 去重？",
+        "1.3 五、run_id + seq 的用途"
+      ]
+    },
+    {
+      "id": "17",
+      "title": "接收快，渲染可以合批",
+      "start": 1066.5277500000002,
+      "duration": 66.66425000000001,
+      "sourceRefs": [
+        "1.3 七、为什么渲染也要节流？",
+        "1.3 七、批次与事件开销"
+      ]
+    },
+    {
+      "id": "18",
+      "title": "停止按钮要传到后台",
+      "start": 1133.1920000000002,
+      "duration": 68.4895,
+      "sourceRefs": [
+        "1.3 八、用户关闭页面后，后台发生了什么？",
+        "1.3 三、反向取消信号",
+        "1.3 八、完整取消链路"
+      ]
+    },
+    {
+      "id": "19",
+      "title": "正在取消与已经取消",
+      "start": 1201.6815000000001,
+      "duration": 68.898375,
+      "sourceRefs": [
+        "1.3 八、为什么需要 cancelling 状态？",
+        "1.3 八、部分输出应不应该保留？"
+      ]
+    },
+    {
+      "id": "20",
+      "title": "流前流中恢复不同",
+      "start": 1270.5798750000001,
+      "duration": 72.7475,
+      "sourceRefs": [
+        "1.3 九、为什么重试必须看失败发生在哪个阶段？",
+        "1.3 九、Model Retry／Transport Replay／Task Resume"
+      ]
+    },
+    {
+      "id": "21",
+      "title": "给流式重试设上限",
+      "start": 1343.327375,
+      "duration": 68.74025,
+      "sourceRefs": [
+        "1.3 九、有边界的重试应该满足什么条件？",
+        "1.3 九、不可重复业务事件边界"
+      ]
+    },
+    {
+      "id": "22",
+      "title": "断线续传依赖事实存储",
+      "start": 1412.0676250000001,
+      "duration": 71.439875,
+      "sourceRefs": [
+        "1.3 九、断线续传为什么依赖 Event Store？",
+        "1.3 九、Last-Event-ID 查询与 Pub/Sub 边界"
+      ]
+    },
+    {
+      "id": "23",
+      "title": "任务恢复需要检查点",
+      "start": 1483.5075000000002,
+      "duration": 69.6245,
+      "sourceRefs": [
+        "1.3 二、Streaming 不能解决什么？",
+        "1.3 九、长文本为什么需要 checkpoint？"
+      ]
+    },
+    {
+      "id": "24",
+      "title": "用故障验收完整链路",
+      "start": 1553.132,
+      "duration": 68.88725000000001,
+      "sourceRefs": [
+        "1.3 十、完整课堂演示的六个边界",
+        "1.3 十、完整代码审查的五个位置",
+        "1.3 十、重要测试",
+        "1.3 十一、本节总结"
+      ]
+    }
+  ],
+  "bytes": 28260369
+}

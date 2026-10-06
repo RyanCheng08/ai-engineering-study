@@ -1,0 +1,1159 @@
+[
+  {
+    "id": "streaming",
+    "term": "Streaming",
+    "aliases": [
+      "流式输出",
+      "Streaming"
+    ],
+    "chapters": [
+      "1.3",
+      "1.6",
+      "1.7"
+    ],
+    "plain": "结果边产生边交付，不必等完整答案才展示。它主要减少用户看见首段内容的等待，不自动让模型生成更快，也不代表任务已经完成。",
+    "analogy": {
+      "title": "厨房陆续上菜",
+      "description": "菜做好一道就上一道，客人不用等整桌齐了才开吃。但厨师做完所有菜的时间未必缩短，也不能因第一道上桌就说宴席结束。"
+    },
+    "steps": [
+      {
+        "title": "产生增量",
+        "description": "模型陆续生成内容，适配器识别文本、结束原因和用量等信息。"
+      },
+      {
+        "title": "逐段交付",
+        "description": "运行层组织事件，传输层及时推给客户端；不能先收完整答案再假装逐段显示。"
+      },
+      {
+        "title": "确认收口",
+        "description": "明确完成、失败或取消后再判定结果状态；半份 JSON 或中断内容不能自动提交。"
+      }
+    ],
+    "example": {
+      "title": "差旅制度解释",
+      "input": "用户：出差打车费用如何报销？",
+      "output": "先显示“先核对出差审批……”，随后补充凭证要求；最终收到完成事件。",
+      "explanation": "用户更早看到方向；只有最终状态与结果验收通过，才能把解释当成本次完整回答。"
+    },
+    "pitfalls": [
+      "逐字动画不等于真实流式，完整答案切片仍可能是伪流式。",
+      "连接停止不等于正常完成；流式也不能突破上下文或输出上限。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 2.1 为什么要流，流能带来什么？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 2.3 Streaming 不能解决什么？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 5.4 Streaming 为什么不能先收完整答案再转发？"
+      }
+    ]
+  },
+  {
+    "id": "sse",
+    "term": "SSE",
+    "aliases": [
+      "Server-Sent Events",
+      "SSE",
+      "服务器发送事件"
+    ],
+    "chapters": [
+      "1.3",
+      "1.6",
+      "1.7"
+    ],
+    "plain": "服务端通过 HTTP 持续向客户端发文本事件。它适合展示模型输出和运行状态；取消通常走另一条请求，SSE 本身不会完成任务状态管理。",
+    "analogy": {
+      "title": "持续更新的广播",
+      "description": "广播站一条条播报进展，听众按频道接收。听众想停止后台任务，还需要向控制台发出明确请求，而不是只关掉收音机。"
+    },
+    "steps": [
+      {
+        "title": "编码事件",
+        "description": "服务端使用 text/event-stream 和 UTF-8；用 data 承载内容，event 表示类型，id 可表示重连位置。"
+      },
+      {
+        "title": "解析完整帧",
+        "description": "事件以空行收束，客户端使用合格解析器；网络一次读取不保证得到一整帧。"
+      },
+      {
+        "title": "按状态消费",
+        "description": "程序区分文本、工具和终态事件。重连携带的位置还需要服务端历史存储才能重放。"
+      }
+    ],
+    "example": {
+      "title": "一条自定义运行事件",
+      "code": "id: 12\nevent: text.delta\ndata: {\"run_id\":\"run-1\",\"seq\":12,\"delta\":\"请保留发票\"}\n\n",
+      "explanation": "这是应用自定义事件。最后的空行用于结束该事件；应用还需定义完成或失败协议。"
+    },
+    "pitfalls": [
+      "EventSource 的连接重试不等于模型重新推理，也不等于 Worker 从崩溃恢复。",
+      "id 和自动重连不会凭空保存历史；可靠重放需要事件存储与去重。"
+    ],
+    "sources": [
+      {
+        "title": "WHATWG：Server-sent events",
+        "url": "https://html.spec.whatwg.org/multipage/server-sent-events.html"
+      },
+      {
+        "title": "MDN：Using server-sent events",
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 6.2 SSE frame 怎样编码？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 9.3 断线续传为什么依赖 Event Store？"
+      }
+    ]
+  },
+  {
+    "id": "http-chunk",
+    "term": "HTTP chunk",
+    "aliases": [
+      "HTTP chunk",
+      "网络读取分块"
+    ],
+    "chapters": [
+      "1.3"
+    ],
+    "plain": "本笔记里指客户端一次读取到的字节片段。它可能只有半个字符、半条事件，或含多条事件；不要把读取边界当作业务消息边界。",
+    "analogy": {
+      "title": "分箱运来的拼图",
+      "description": "一箱可能装着两张拼图的零件，也可能只装半张。箱子到达不代表一张图已完整，先拼出图才能判断内容。"
+    },
+    "steps": [
+      {
+        "title": "先读字节",
+        "description": "read() 返回流中的一块字节，大小与事件内容没有一一对应关系。"
+      },
+      {
+        "title": "增量解码",
+        "description": "保留不完整 UTF-8 字符的字节，持续解码为文字，避免中文跨读取时乱码。"
+      },
+      {
+        "title": "再解析帧",
+        "description": "文字进入缓冲与 SSE 解析器，完整事件再交给业务代码；未完成部分继续等待。"
+      }
+    ],
+    "example": {
+      "title": "两个读取才凑齐一帧",
+      "input": "读取一：data: {\"delta\":\"你\n读取二：好\"}\\n\\n",
+      "output": "合并后才得到完整 data 行并解析出 delta=“你好”。",
+      "explanation": "示意表达的是文字片段被拆开；真实读取还可能把单个汉字的 UTF-8 字节拆到不同块里。"
+    },
+    "pitfalls": [
+      "此处的读取片段不等于 TCP 包，也不等于 HTTP/1.1 的 chunked 传输编码分块。",
+      "不能对每个 value 直接 JSON.parse；SSE 字段与帧边界还需要解析。"
+    ],
+    "sources": [
+      {
+        "title": "MDN：Using readable streams",
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams"
+      },
+      {
+        "title": "MDN：TextDecoder.decode()",
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder/decode"
+      },
+      {
+        "title": "MDN：Transfer-Encoding",
+        "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Transfer-Encoding"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 7.1 为什么不能把一次 read() 当成一条事件？"
+      }
+    ]
+  },
+  {
+    "id": "delta",
+    "term": "delta",
+    "aliases": [
+      "delta",
+      "文本增量",
+      "text.delta",
+      "content.delta"
+    ],
+    "chapters": [
+      "1.3",
+      "1.6",
+      "1.7"
+    ],
+    "plain": "这次比上次新增加的内容。文本 delta 通常只是答案的一小段，不是完整响应，也不一定只含一个汉字或一个 Token。",
+    "analogy": {
+      "title": "记账本新增一行",
+      "description": "每次只告诉你这次增加了什么，而不是重新抄整本账。把新增行按位置放好，才能看到完整记录。"
+    },
+    "steps": [
+      {
+        "title": "取得新增内容",
+        "description": "适配器从供应商分块里提取有意义的文本，空文本不应算首段可见内容。"
+      },
+      {
+        "title": "按事件位置追加",
+        "description": "同一运行按稳定序号消费；重放的同一事件去重，不按文字是否相同去重。"
+      },
+      {
+        "title": "等最终状态",
+        "description": "增量组成部分结果，完成事件和完整性校验决定它能否作为最终产物。"
+      }
+    ],
+    "example": {
+      "title": "拼成一句话",
+      "input": "seq=1：请保留\nseq=2：发票\nseq=3：原件",
+      "output": "请保留发票原件",
+      "explanation": "如果重放 seq=2，应忽略已消费的同一事件；新的 seq 即使文字相同，也可能是合法内容。"
+    },
+    "pitfalls": [
+      "一次 delta 不是一个 Token；一次网络读取也不一定只含一个 delta。",
+      "已有内容后发生失败，不能从备用模型重生成再直接拼到旧内容后。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 3.1 为什么这些概念不能混用？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 7.2 为什么客户端还要按 seq 去重？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 6.4 流式 fallback 为什么以“是否已经输出”为边界？"
+      }
+    ]
+  },
+  {
+    "id": "model-stream-event",
+    "term": "ModelStreamEvent",
+    "aliases": [
+      "ModelStreamEvent",
+      "模型流事件"
+    ],
+    "chapters": [
+      "1.3"
+    ],
+    "plain": "适配器把供应商流统一成的内部模型事件，例如文本增量、生成结束和用量。它描述一次模型流，尚不是整个 Agent 任务的运行事实。",
+    "analogy": {
+      "title": "翻译员的统一速记",
+      "description": "不同发言人用不同说法，翻译员先整理成统一格式的速记。会议主持人再把它与其他环节组成整场会议记录。"
+    },
+    "steps": [
+      {
+        "title": "接收供应商分块",
+        "description": "识别各家服务的文本、结束原因、用量和错误，处理没有文本的分块。"
+      },
+      {
+        "title": "统一模型语义",
+        "description": "生成内部模型事件，不把 SDK 对象或私有字段直接交给客户端。"
+      },
+      {
+        "title": "交给运行层",
+        "description": "Loop 或 Harness 根据任务上下文转换为 RunEvent，并补工具、取消和最终状态。"
+      }
+    ],
+    "example": {
+      "title": "统一文本增量",
+      "code": "ModelStreamEvent(\n    type=\"text.delta\",\n    data={\"delta\": \"先核对出差审批\"}\n)",
+      "explanation": "这是内部 Python 数据对象的示意，不是 SSE 文本帧；也没有宣布整个任务完成。"
+    },
+    "pitfalls": [
+      "适配器不应同时承担任务状态、SSE 订阅和业务工具执行。",
+      "模型结束事件不自动意味着整个 Agent Run 完成。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 4.1 为什么不能把供应商 chunk 直接转给前端？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 4.2 DeepSeek 流怎样进入 Model Adapter？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 5.1 ModelStreamEvent 和 RunEvent 有什么区别？"
+      }
+    ]
+  },
+  {
+    "id": "run-event",
+    "term": "RunEvent",
+    "aliases": [
+      "RunEvent",
+      "运行事件"
+    ],
+    "chapters": [
+      "1.3"
+    ],
+    "plain": "描述整个 Agent 运行发生了什么的事件，可包含文本、工具、取消和终态。run_id 与 seq 标出它属于哪次运行、处于哪个位置。",
+    "analogy": {
+      "title": "一张旅行进度单",
+      "description": "不是只记录导游说了什么，还记录登车、查票、改道和到达。每条有旅行编号与顺序，才能还原完整过程。"
+    },
+    "steps": [
+      {
+        "title": "组织真实进展",
+        "description": "运行层把模型内容和工具观察等整理成事件，工具完成应依据实际执行结果。"
+      },
+      {
+        "title": "先保存位置",
+        "description": "事件按 run_id 与 seq 保存，支持排序、查找后续事件及客户端去重。"
+      },
+      {
+        "title": "唯一终态收口",
+        "description": "同次 Run 只产生 completed、failed、cancelled 中一种终态，完成与取消竞争也要受控。"
+      }
+    ],
+    "example": {
+      "title": "一次查询的运行事实",
+      "input": "run-7 / seq 1：run.started\nrun-7 / seq 2：tool.started\nrun-7 / seq 3：tool.completed\nrun-7 / seq 4：run.completed",
+      "output": "用户能看到查询进度及最终结局。",
+      "explanation": "这里只是正常路径；失败或取消应使用相应唯一终态，不能把两种结局同时发布。"
+    },
+    "pitfalls": [
+      "收到文字增量不等于任务完成，网络 EOF 也不是 Run 终态。",
+      "保存运行事件能恢复观察视图，不能单独保证崩溃后的执行器恢复。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 5.1 ModelStreamEvent 和 RunEvent 有什么区别？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 5.2 为什么必须有明确终态？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 9.3 断线续传为什么依赖 Event Store？"
+      }
+    ]
+  },
+  {
+    "id": "llm-gateway",
+    "term": "LLM Gateway",
+    "aliases": [
+      "LLM Gateway",
+      "模型网关",
+      "统一模型调用服务"
+    ],
+    "chapters": [
+      "1.6",
+      "1.7"
+    ],
+    "plain": "企业内部统一的模型调用入口。它管理请求契约、模板、能力路由、供应商适配、验收、有限恢复和证据；任务为什么调用、怎样结束仍由 Agent 框架决定。",
+    "analogy": {
+      "title": "统一差旅服务台",
+      "description": "员工只向服务台提交规范需求。服务台检查材料、联系合格供应商并留下记录，不替员工决定整个出差任务是否完成。"
+    },
+    "steps": [
+      {
+        "title": "接住统一请求",
+        "description": "前置检查允许字段、模板变量和能力组合，逻辑模型别名由平台配置解析。"
+      },
+      {
+        "title": "受控执行",
+        "description": "选合格候选，适配供应商，按错误分类和剩余预算执行有限恢复。"
+      },
+      {
+        "title": "验收并留证",
+        "description": "返回通过校验的对象或稳定错误，记录实际模型、版本、真实次数和用量。"
+      }
+    ],
+    "example": {
+      "title": "差旅助手请求决策",
+      "input": "逻辑模型：agent-structured；模板：knowledge_decision v1；输出：AgentDecision。",
+      "output": "统一结果包含决策对象、实际端点和调用证据；权限及业务组合继续验收。",
+      "explanation": "调用方不持有供应商密钥，也不直接依赖供应商 SDK；网关不是任意 JSON 透明转发器。"
+    },
+    "pitfalls": [
+      "网关的模型调用 completed 不等于 Agent Run 已完成。",
+      "1.6 原型和1.7服务不是全部生产能力；完整任务状态与多副本治理有后续边界。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 2.3 哪些内容属于 Gateway，哪些必须留在 Harness？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 三、从 1.6 到 1.7：为什么要继续演进？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 7.6 不要把 Gateway 做成透明代理"
+      }
+    ]
+  },
+  {
+    "id": "model-adapter",
+    "term": "Model Adapter",
+    "aliases": [
+      "Model Adapter",
+      "Adapter",
+      "模型适配器",
+      "Provider Adapter"
+    ],
+    "chapters": [
+      "1.3",
+      "1.6",
+      "1.7"
+    ],
+    "plain": "把统一模型请求翻译成某家服务的协议，再把响应、事件与错误翻译回来。它消化供应商差异，不负责选择业务策略或决定整个任务怎样推进。",
+    "analogy": {
+      "title": "不同插头的转换器",
+      "description": "上层设备使用稳定插口，转换器适配不同电源接口。它负责连接方式，不决定你要用设备做什么。"
+    },
+    "steps": [
+      {
+        "title": "翻译请求",
+        "description": "将内部消息、参数和结构要求转换成供应商真实支持的格式。"
+      },
+      {
+        "title": "调用与归一化",
+        "description": "读取供应商结果，映射文本、结束原因、用量、事件和稳定错误。"
+      },
+      {
+        "title": "保持上层稳定",
+        "description": "Loop 只消费内部协议，不读取 SDK 私有对象；新供应商通过契约测试后替换实现。"
+      }
+    ],
+    "example": {
+      "title": "换服务，业务循环不改",
+      "input": "同一 ModelRequest 分别交给 Adapter A 与 Adapter B。",
+      "output": "两家返回统一 ModelResponse 或 GatewayError。",
+      "explanation": "输出文字不必完全相同；被统一的是可消费的协议、错误和证据，而不是模型答案确定性。"
+    },
+    "pitfalls": [
+      "兼容接口的字段相似，不表示能力、Usage 和错误完全相同。",
+      "1.6 把适配器接口也命名为 Provider，应按代码语境区分服务商与适配层。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 4.1 为什么不能把供应商 chunk 直接转给前端？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 4.2 Provider Protocol 为什么比直接调用 SDK 多一层？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 8.1 Adapter 只适配协议，不制定业务策略"
+      }
+    ]
+  },
+  {
+    "id": "provider",
+    "term": "Provider",
+    "aliases": [
+      "Provider",
+      "模型供应商",
+      "供应商端点"
+    ],
+    "chapters": [
+      "1.3",
+      "1.6",
+      "1.7"
+    ],
+    "plain": "按1.7术语，Provider 是实际提供模型服务的端点或供应商。1.6 代码也用 Provider 命名适配器接口，所以要结合语境辨认它是在提供服务还是转换协议。",
+    "analogy": {
+      "title": "旅行服务的实际承办方",
+      "description": "统一服务台是入口，实际航司或酒店提供服务，翻译和对接人员负责适配。承办方不等于对接人员，也不负责完整旅程的任务状态。"
+    },
+    "steps": [
+      {
+        "title": "配置真实端点",
+        "description": "网关配置真实模型名、地址、凭据来源及经过验证的能力，不把密钥发给业务 Agent。"
+      },
+      {
+        "title": "通过适配层访问",
+        "description": "Adapter 发出该端点支持的请求，并映射其特有的响应与错误。"
+      },
+      {
+        "title": "记录实际执行方",
+        "description": "发生切换时记录最终供应商和真实模型，保留上游响应标识以便排查。"
+      }
+    ],
+    "example": {
+      "title": "别名与真实服务不同",
+      "input": "调用方请求 general-primary。",
+      "output": "配置解析到 Provider A 的真实 model_id；若合格备用执行成功，证据记录 Provider B。",
+      "explanation": "逻辑别名是平台契约，真实供应商模型是执行事实；不能只凭接口兼容假设能力等价。"
+    },
+    "pitfalls": [
+      "Provider 名称或 URL 不是能力保证，必须验证请求所需能力。",
+      "不要把供应商业务策略或原始 SDK 对象泄漏到 Agent Loop。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 2.1 为什么要先统一术语？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 4.1 为什么平台模型名不能直接等于供应商模型名？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 二、先统一术语：Gateway、Router、Adapter 与 Harness 分别是什么？"
+      }
+    ]
+  },
+  {
+    "id": "trace",
+    "term": "Trace",
+    "aliases": [
+      "Trace",
+      "CallTrace",
+      "调用追踪",
+      "调用证据"
+    ],
+    "chapters": [
+      "1.3",
+      "1.6",
+      "1.7"
+    ],
+    "plain": "记录调用发生了什么的结构化证据：请求与实际模型、版本、尝试、用量、延迟及结局。它帮助关联和复盘，不等于默认保存所有提示词和回答。",
+    "analogy": {
+      "title": "快递的行程记录",
+      "description": "记录包裹何时到哪一站、换过哪些运输线路、最终是否送达。只写一句运输失败，无法定位哪一步出了问题。"
+    },
+    "steps": [
+      {
+        "title": "建立关联",
+        "description": "可信系统生成或注入 Trace、Run、Step、Call 标识，上游请求标识另行保留。"
+      },
+      {
+        "title": "记录真实执行",
+        "description": "每次尝试、候选理由、实际模型、Prompt/Schema 版本和可得 Usage 都进入证据。"
+      },
+      {
+        "title": "成功失败都收口",
+        "description": "失败也留稳定错误；敏感正文的采样、保存期限和访问权限独立治理。"
+      }
+    ],
+    "example": {
+      "title": "备用成功的证据",
+      "input": "请求主模型；主两次连接失败；备用第一次成功。",
+      "output": "requested_model=主；actual_model=备用；attempts=3；status=success。",
+      "explanation": "关掉 SDK 隐藏重试后，这个次数才能与真实上游调用一致。"
+    },
+    "pitfalls": [
+      "不能只记录请求模型或外层循环次数，否则切换和成本会失真。",
+      "Trace 不是把 API Key、完整敏感 Prompt 和内部堆栈发给客户端。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 6.7 Trace 为什么不能只写一句日志？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 11.1 一次模型调用至少记录什么"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 13.3 一次 Loop Step 的 Trace 关系"
+      }
+    ]
+  },
+  {
+    "id": "ttft",
+    "term": "TTFT",
+    "aliases": [
+      "TTFT",
+      "Time to First Token",
+      "首文本延迟"
+    ],
+    "chapters": [
+      "1.3",
+      "1.7"
+    ],
+    "plain": "从请求开始到首次有意义的文本增量出现的时间。本课以首个非空 text.delta 为准，连接成功或空事件不算；它与总生成时间是两个指标。",
+    "analogy": {
+      "title": "点菜到第一道上桌",
+      "description": "点菜后第一次看到能吃的菜算首道等待。服务员说收到或端来空盘不算，整桌菜上齐则是另一个时间。"
+    },
+    "steps": [
+      {
+        "title": "确定起点",
+        "description": "明确从哪个请求阶段开始计时，记录单调时间，避免不同指标混用。"
+      },
+      {
+        "title": "识别首文本",
+        "description": "忽略无文本的供应商事件，只在第一个非空文字增量时记录首内容时间。"
+      },
+      {
+        "title": "与总耗时比较",
+        "description": "同时观察排队、连接和生成耗时；部署还需测客户端实际到达，检查代理缓冲。"
+      }
+    ],
+    "example": {
+      "title": "空事件不能算首内容",
+      "input": "0秒请求；0.2秒响应头；0.4秒空增量；1.8秒出现“请核对”；5秒完成。",
+      "output": "按本课口径 TTFT=1.8秒，总耗时约5秒。",
+      "explanation": "如果1.8秒只在服务端看到，浏览器5秒才显示，还要排查传输或代理缓冲。"
+    },
+    "pitfalls": [
+      "首事件、首 Token 和首可见文本要先约定口径，不能随意混算。",
+      "TTFT 改善不自动说明任务成功率、总耗时或工具速度改善。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 4.3 TTFT 应该在哪里记录？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 6.4 为什么代码已经 yield，浏览器仍可能最后一次收到？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 11.3 TTFT 与总耗时"
+      }
+    ]
+  },
+  {
+    "id": "usage",
+    "term": "Usage",
+    "aliases": [
+      "Usage",
+      "Token usage",
+      "用量"
+    ],
+    "chapters": [
+      "1.3",
+      "1.6",
+      "1.7"
+    ],
+    "plain": "模型调用消耗了多少输入、输出及可能的缓存或推理 Token 的记录。它是成本与预算依据；字段缺失不能自动证明真实消耗为零。",
+    "analogy": {
+      "title": "水表读数",
+      "description": "水表记录用了多少水，价格表决定多少钱。没抄到读数不代表没用水；多次看到同一累计读数也不能重复相加。"
+    },
+    "steps": [
+      {
+        "title": "获取供应商用量",
+        "description": "适配层识别可用字段与口径，流式用量可能在独立完成事件到达。"
+      },
+      {
+        "title": "归一化并收口",
+        "description": "区分累计值与增量值，避免重复结算；失败调用的已知消耗也需留证。"
+      },
+      {
+        "title": "记入总预算",
+        "description": "将真实用量和版本化价格用于估算成本，重试、备用与修复都计入所属任务。"
+      }
+    ],
+    "example": {
+      "title": "累计用量不能相加",
+      "input": "两个事件先后报告累计输出 Token=40、100。",
+      "output": "最终累计输出为100，不是140。",
+      "explanation": "这是假设事件语义为累计值的示例。适配器必须验证实际字段口径，不能对所有服务采用同一猜测。"
+    },
+    "pitfalls": [
+      "1.6 原型只产文本的流式 Usage 暂为零，不代表已经具备可靠流式计费。",
+      "Token 与汉字不一一对应；估算成本也不等于供应商最终账单。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 4.2 DeepSeek 流怎样进入 Model Adapter？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 8.2 Streaming Token Usage 应该从哪里取得？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 11.4 Cost Ledger"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 14.4 Streaming 测试"
+      }
+    ]
+  },
+  {
+    "id": "retry",
+    "term": "Retry",
+    "aliases": [
+      "Retry",
+      "有限重试",
+      "网络重试"
+    ],
+    "chapters": [
+      "1.3",
+      "1.6",
+      "1.7"
+    ],
+    "plain": "对可能短暂恢复的故障再尝试一次。网关网络重试通常保持输入不变，必须受错误分类、次数、截止时间与任务预算约束；不是所有失败都值得重来。",
+    "analogy": {
+      "title": "电话暂时占线",
+      "description": "暂时占线可以稍后再拨，号码错了就应修号码。等候和每次拨号都占用时间，不能一直拨到会议结束以后。"
+    },
+    "steps": [
+      {
+        "title": "判断是否可恢复",
+        "description": "连接、限流或过载按策略分类；认证、缺变量和非法参数通常立即停止。"
+      },
+      {
+        "title": "检查剩余预算",
+        "description": "计算次数、截止时间与任务剩余额度，等待也算时间；统一控制，关闭隐藏 SDK 重试。"
+      },
+      {
+        "title": "尝试并记账",
+        "description": "记录每个真实上游 attempt；耗尽预算明确失败，不把错误包装成成功。"
+      }
+    ],
+    "example": {
+      "title": "重试后的真实次数",
+      "input": "同一主端点首次连接失败，第二次成功。",
+      "output": "attempts=2，输入保持不变，Trace 保留恢复证据。",
+      "explanation": "若补了上下文或改了任务计划，已是 Loop 的新决策，不应偷偷藏成同一次网络恢复。"
+    },
+    "pitfalls": [
+      "Schema 失败需要有边界的格式修复，不能直接塞入普通网络重试。",
+      "首个不可重复业务增量后不盲目重生成；模型重试不等于写工具可以重做。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 9.2 有边界的重试应该满足什么条件？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 6.1 为什么不能写成 except Exception: retry？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 6.5 Gateway 重试和 Agent Loop 重试有什么区别？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 12.3 有边界的指数退避"
+      }
+    ]
+  },
+  {
+    "id": "fallback",
+    "term": "Fallback",
+    "aliases": [
+      "Fallback",
+      "模型切换",
+      "备用模型切换"
+    ],
+    "chapters": [
+      "1.6",
+      "1.7"
+    ],
+    "plain": "当前候选不可用时，在明确边界内切换另一合格模型端点。备用必须满足同次请求的能力与策略；已有文本后不能从头重生成再拼接。",
+    "analogy": {
+      "title": "换一家合格承办方",
+      "description": "订车失败可以找另一家，但仍要满足座位、许可和预算。乘客已走半程时，不能假装重新出发就能无缝续上原路线。"
+    },
+    "steps": [
+      {
+        "title": "确认允许切换",
+        "description": "仅按可恢复服务故障与预算切换，非法请求、权限失败或内容拒答不应靠换模型绕过。"
+      },
+      {
+        "title": "验证候选等价",
+        "description": "备用满足结构、流式等本次要求及健康策略，不偷偷降低协议。"
+      },
+      {
+        "title": "执行并记录",
+        "description": "首个不可重复业务增量交付前才允许有限切换；一旦已交付文本等业务增量，失败就保存部分输出并明确收口，不从头重生成拼接。响应头、心跳或网络片段不构成这条边界。"
+      }
+    ],
+    "example": {
+      "title": "结构化请求的备用资格",
+      "input": "请求要求 json_schema；主端点超时；备用只支持普通文本。",
+      "output": "该备用不合格，不能直接调用并返回自然语言当成功。",
+      "explanation": "本项指模型端点切换，历史缓存回退有另外的输入、版本和时效规则。"
+    },
+    "pitfalls": [
+      "不是所有错误都能换模型，拒答后换更宽松端点不属于可靠恢复。",
+      "fallback、网络 retry 与格式 repair 都要累计到同一任务预算，不能各自重置。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 6.3 fallback 为什么必须先做能力检查？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 6.4 流式 fallback 为什么以“是否已经输出”为边界？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 8.4 Fallback 的边界"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 13.4 预算必须从 Run 传播到 Call"
+      }
+    ]
+  },
+  {
+    "id": "deadline-timeout",
+    "term": "Deadline 与 Timeout",
+    "aliases": [
+      "deadline",
+      "deadline_at",
+      "timeout",
+      "timeout_seconds",
+      "截止时间",
+      "超时"
+    ],
+    "chapters": [
+      "1.6",
+      "1.7"
+    ],
+    "plain": "Timeout 是某次操作最多等多久；Deadline 是整个调用最晚何时结束。多次尝试不能各拿一份全新时间，等待、排队和切换都要看剩余总额度。",
+    "analogy": {
+      "title": "赶十点的高铁",
+      "description": "一次打车最多等五分钟是超时；十点必须到站是截止时间。第二次叫车不能让高铁自动延后，剩余时间会越来越少。"
+    },
+    "steps": [
+      {
+        "title": "定总截止时间",
+        "description": "由任务剩余时间推导 Call 的最晚结束时间，不在 fallback 时悄悄重置。"
+      },
+      {
+        "title": "每轮算剩余额度",
+        "description": "尝试前减去已耗时间，单次 timeout 不超过可用额度；退避等待也受约束。"
+      },
+      {
+        "title": "不够就明确结束",
+        "description": "下一次等待或执行已无合理时间时停止，返回稳定错误并记录预算耗尽。"
+      }
+    ],
+    "example": {
+      "title": "次数未满也要停止",
+      "input": "deadline 尚余1.4秒，下一次退避需要1.6秒，最大尝试次数尚未用完。",
+      "output": "停止该恢复路径并返回截止时间错误。",
+      "explanation": "次数和总时间是同时成立的约束，不能因尚可再试一次就越过 deadline。"
+    },
+    "pitfalls": [
+      "只设 max_retries=3 不代表总耗时有界，三次长超时可能超出 Run 预算。",
+      "1.6 的 timeout 字段不应被误讲成完整 Run deadline 机制；后者是服务演进目标。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.6 3.3 一份统一请求为什么只保留这些字段？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 12.3 有边界的指数退避"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 13.4 预算必须从 Run 传播到 Call"
+      }
+    ]
+  },
+  {
+    "id": "idempotency",
+    "term": "Idempotency",
+    "aliases": [
+      "Idempotency",
+      "Idempotency-Key",
+      "幂等性",
+      "幂等键"
+    ],
+    "chapters": [
+      "1.7"
+    ],
+    "plain": "同一操作重复执行，与执行一次的预期效果相同。网关常通过幂等键和请求指纹避免重复逻辑调用；这不保证上游模型只生成一次或只计费一次。",
+    "analogy": {
+      "title": "取件码对应同一包裹",
+      "description": "拿同一取件码重复来，不应发两份包裹。若有人用同一码要求另一包裹，要拒绝；仓库内部是否已经重复发货，还需要真实记录核查。"
+    },
+    "steps": [
+      {
+        "title": "绑定键与请求指纹",
+        "description": "保存幂等键、请求内容指纹、状态及上游标识，同键不同内容必须拒绝。"
+      },
+      {
+        "title": "重复提交查状态",
+        "description": "同键同请求读取已有结果或执行状态，不随意创建第二个逻辑调用。"
+      },
+      {
+        "title": "明确上游边界",
+        "description": "超时可能只是响应丢失；核查已发生执行，不能把网关去重当供应商去重保证。"
+      }
+    ],
+    "example": {
+      "title": "同键不同内容",
+      "input": "第一次 key=travel-7，问题是打车报销；第二次同 key，问题改成住宿报销。",
+      "output": "拒绝第二次请求的指纹冲突，不能返回旧打车答案。",
+      "explanation": "幂等键只有和请求内容、运行状态结合才有意义，并不天然提供全链路只执行一次。"
+    },
+    "pitfalls": [
+      "请求超时不证明供应商没有执行；重试可能仍带来重复生成或收费。",
+      "模型调用去重不能代替业务写工具自己的幂等、批准与真实状态核查。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 12.7 幂等性不能避免模型重复计费"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 15.11 常见面试题"
+      },
+      {
+        "title": "RFC 9110 · 9.2.2 Idempotent Methods",
+        "url": "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2"
+      }
+    ]
+  },
+  {
+    "id": "backpressure",
+    "term": "Backpressure",
+    "aliases": [
+      "Backpressure",
+      "背压"
+    ],
+    "chapters": [
+      "1.7"
+    ],
+    "plain": "下游消费太慢时，限制上游继续堆积数据。让读取或生产等待，或按明确策略结束，避免事件队列无限占内存；不是随意扔掉重要事件。",
+    "analogy": {
+      "title": "流水线前面的红灯",
+      "description": "包装员跟不上生产，仓位快满时给前面亮红灯。先减速或停线，不能无限堆货，也不能把质检单和最后一件货随手丢掉。"
+    },
+    "steps": [
+      {
+        "title": "发现速度差",
+        "description": "观察队列容量与消费者状态，上游生成快、下游读取慢会持续积压。"
+      },
+      {
+        "title": "设置容量和等待",
+        "description": "队列有上限，向满队列写入按策略等待；若无法控制供应商生产，就选择受控中断。"
+      },
+      {
+        "title": "保护收口事件",
+        "description": "不能静默丢弃错误、终态、Usage 或工具参数事件；失败时明确结束并释放资源。"
+      }
+    ],
+    "example": {
+      "title": "有界事件队列",
+      "code": "queue = asyncio.Queue(maxsize=256)\nawait asyncio.wait_for(\n    queue.put(event), timeout=1.0\n)\n# 等待超限：明确失败并执行统一收口",
+      "explanation": "队列满时生产方等待，等待超限后执行失败策略。容量不是可靠传输保证，还需完整事件和终态规则。"
+    },
+    "pitfalls": [
+      "本地队列变慢不保证供应商立即停止生成，取消与资源治理仍需落实。",
+      "只限 QPS 不能消除长连接积压，也不应把数据丢弃当成默认背压。"
+    ],
+    "sources": [
+      {
+        "title": "MDN：Streams API concepts — Backpressure",
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Concepts#backpressure"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 12.6 Backpressure"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 14.4 Streaming 测试"
+      }
+    ]
+  },
+  {
+    "id": "model-registry-router",
+    "term": "Registry / Router",
+    "aliases": [
+      "Model Registry",
+      "ModelRegistry",
+      "Registry",
+      "Router",
+      "模型注册表",
+      "能力注册表",
+      "路由器",
+      "模型路由"
+    ],
+    "chapters": [
+      "1.7"
+    ],
+    "plain": "Registry 记有哪些端点、能力、价格和状态；Router 针对本次请求筛选并排序。一个是资料表，一个是决策规则；最后还要留下选择和拒绝原因。",
+    "analogy": {
+      "title": "供应商名录与采购选择",
+      "description": "名录写每家能提供什么、价格与状态；采购员根据这次需求和预算选合格供应商。不能因为最便宜就忽略必需资质。"
+    },
+    "steps": [
+      {
+        "title": "解析逻辑别名",
+        "description": "从稳定服务名找到配置的候选，Registry 提供真实模型 ID 与能力声明。"
+      },
+      {
+        "title": "先筛资格再排序",
+        "description": "按结构、流式、上下文等能力及政策、预算、健康过滤，再用明确优先级或评分。"
+      },
+      {
+        "title": "记录并评测",
+        "description": "RouteDecision 保留选中理由与拒绝原因；新候选上线前用固定 Eval 比较业务效果。"
+      }
+    ],
+    "example": {
+      "title": "便宜但能力不符",
+      "input": "agent-structured 候选：A 便宜但无 JSON Schema；B 能力满足且健康。",
+      "output": "拒绝 A 并记录 json_schema_required，选择合格 B。",
+      "explanation": "逻辑别名表示平台服务类别，Router 不能悄悄降低这一类别承诺的能力。"
+    },
+    "pitfalls": [
+      "路由不等于挑最强或最便宜，能力与数据策略需要先满足。",
+      "Adapter 负责协议翻译，不应自行决定路由预算或业务质量优先级。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 二、先统一术语：Gateway、Router、Adapter 与 Harness 分别是什么？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 8.2 能力注册表"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 8.3 路由不是“挑最强模型”"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 8.5 路由与 Eval 的关系"
+      }
+    ]
+  },
+  {
+    "id": "cancellation",
+    "term": "Cancellation",
+    "aliases": [
+      "Cancellation",
+      "Cancel API",
+      "cancelling",
+      "run.cancelled",
+      "response.cancelled",
+      "取消传播"
+    ],
+    "chapters": [
+      "1.3",
+      "1.7"
+    ],
+    "plain": "把停止意图传到后台执行并收束资源。停止渲染或关闭连接，只说明不再接收；真正取消还要让模型、任务或可取消工具退出，并形成唯一终态。",
+    "analogy": {
+      "title": "取消餐厅订单",
+      "description": "你离开餐桌不表示厨房收到退单。服务员要传达，厨房确认停止后才算取消；已经端出的菜也不会因退单自动消失。"
+    },
+    "steps": [
+      {
+        "title": "接受控制请求",
+        "description": "显式取消将运行从 running 转到 cancelling，避免刚收到请求就宣称已停止。"
+      },
+      {
+        "title": "反向传播",
+        "description": "Loop 在安全点检查，关闭模型流并通知任务或工具停止；不能假设已有副作用可撤销。"
+      },
+      {
+        "title": "保存并唯一收口",
+        "description": "保存部分文本、事件位置和已知执行证据，退出后记录取消；与完成竞争只能有一个终态。"
+      }
+    ],
+    "example": {
+      "title": "点击停止后的正确状态",
+      "input": "用户点击停止；后台模型仍在收尾。",
+      "output": "先显示 cancelling；资源退出后才确认 cancelled。",
+      "explanation": "如果完成在竞态中已合法收口，就不能再写第二个取消终态；半份结构对象只供查看，不自动执行。"
+    },
+    "pitfalls": [
+      "断开 SSE 订阅或 Abort 客户端读取，不自动保证服务器任务和供应商已停止。",
+      "取消不自动撤销写工具副作用，也不能同时产生 completed 与 cancelled。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 8.1 用户关闭页面后，后台发生了什么？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 8.2 为什么需要 cancelling 状态？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 8.3 部分输出应不应该保留？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 9.4 流式响应必须只有一个终态"
+      }
+    ]
+  },
+  {
+    "id": "checkpoint",
+    "term": "Checkpoint",
+    "aliases": [
+      "Checkpoint",
+      "checkpoint",
+      "检查点"
+    ],
+    "chapters": [
+      "1.3",
+      "1.7"
+    ],
+    "plain": "在稳定步骤保存可恢复的执行状态，作为继续任务的锚点。它记录进度、产物与必要上下文，不只是文本日志；事件重放与 Worker 恢复仍是不同动作。",
+    "analogy": {
+      "title": "长途旅行的可靠路标",
+      "description": "到每个站点记下已经到达、拿到了什么、下一站在哪。迷路后从已确认站点继续，不能只凭照片就认定所有车票和付款状态都能恢复。"
+    },
+    "steps": [
+      {
+        "title": "选择稳定步骤",
+        "description": "长报告拆成大纲、分节、逐节验收与汇总，在完成并确认的边界保存状态。"
+      },
+      {
+        "title": "持久化恢复锚点",
+        "description": "记录当前步骤、已完成章节、产物引用、最后事件位置和必要摘要；恢复所需工具状态另行关联。"
+      },
+      {
+        "title": "核查后继续",
+        "description": "Worker 恢复前核查产物与工具真实状态，只继续未完成工作；已有写操作不能盲目重做。"
+      }
+    ],
+    "example": {
+      "title": "报告生成到第二章后崩溃",
+      "input": "检查点保存完成章节1、2及其文件引用，下一步是章节3，last_seq=42。",
+      "output": "客户端从其最后收到的 seq 重放后续事件；Worker 恢复则加载检查点，核查产物与工具后继续未完成步骤。",
+      "explanation": "重放只是恢复用户看见的事实，加载检查点才提供执行进度；外部写操作是否重复还要自己的幂等与状态证据。"
+    },
+    "pitfalls": [
+      "保存全部 SSE 帧不能单独保证 Worker 或外部工具状态恢复。",
+      "检查点不是错误内容的免检凭证，也不能让 Streaming 突破上下文或输出预算。"
+    ],
+    "sources": [
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 9.1 为什么重试必须看失败发生在哪个阶段？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.3 9.4 长文本为什么需要 checkpoint，而不是只靠 Streaming？"
+      },
+      {
+        "title": "第一章学习笔记",
+        "section": "1.7 15.1 本节项目结构"
+      }
+    ]
+  }
+]

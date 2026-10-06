@@ -1,0 +1,16 @@
+{
+  "name": "ai-engineering-study",
+  "version": "1.0.0",
+  "private": true,
+  "description": "第一章学习中心：七节笔记、同页自测、术语与讲解视频",
+  "type": "module",
+  "scripts": {
+    "build": "python 可视化页面/测试题/build_quiz.py && node 可视化页面/build-notes.mjs && python scripts/build-site.py"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "marked": "17.0.5"
+  }
+}

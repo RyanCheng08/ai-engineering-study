@@ -1,0 +1,361 @@
+{
+  "number": "1.6",
+  "title": "LLM Gateway",
+  "questions": [
+    {
+      "id": "1.6-01",
+      "order": 1,
+      "level": 1,
+      "type": "single",
+      "title": "网关的主要职责",
+      "prompt": "企业差旅 Agent 接入 LLM Gateway 后，哪项职责应主要由 Gateway 承担？",
+      "options": [
+        {
+          "key": "A",
+          "text": "根据差旅任务状态决定下一步查询哪个业务工具"
+        },
+        {
+          "key": "B",
+          "text": "维护统一模型调用契约，校验结果并记录调用证据"
+        },
+        {
+          "key": "C",
+          "text": "判断员工是否已经真正完成差旅报销"
+        },
+        {
+          "key": "D",
+          "text": "根据模型声称的结果修改业务订单状态"
+        }
+      ],
+      "answer": [
+        "B"
+      ],
+      "referenceAnswer": "选 B。Gateway 治理一次模型调用：统一请求与响应、装配受控 Prompt、检查模型能力、适配供应商、校验结果、执行有限恢复并留下 Trace。任务推进、业务工具和真实完成条件由 Agent Loop、Harness 或业务系统负责。",
+      "explanation": "A 涉及任务状态和工具决策；C 涉及跨步骤业务完成条件；D 把模型候选陈述当成真实执行证据。三者均越过 Gateway 的模型执行边界。",
+      "sourceRefs": [
+        "1.6 2.3 哪些内容属于 Gateway，哪些必须留在 Harness？",
+        "1.6 九、本节总结"
+      ]
+    },
+    {
+      "id": "1.6-02",
+      "order": 2,
+      "level": 1,
+      "type": "single",
+      "title": "逻辑模型名与真实模型",
+      "prompt": "Agent 请求逻辑模型名 general-primary。主端点失败后，合格备用端点成功生成结果。哪项记录方式最准确？",
+      "options": [
+        {
+          "key": "A",
+          "text": "响应仍记录主真实模型，因为调用方请求了主模型"
+        },
+        {
+          "key": "B",
+          "text": "Agent 必须先知道所有真实模型与密钥才能调用"
+        },
+        {
+          "key": "C",
+          "text": "响应记录实际使用的备用模型，Trace 同时保留请求模型与实际模型"
+        },
+        {
+          "key": "D",
+          "text": "主备名称可混用，因为它们都提供文本生成"
+        }
+      ],
+      "answer": [
+        "C"
+      ],
+      "referenceAnswer": "选 C。逻辑模型名是上层稳定服务别名，真实供应商模型名由配置解析。发生 fallback 后，响应和 Trace 必须反映实际执行端点；Trace 保留 requested_model 与 actual_model，才能解释路由、效果、成本和故障。",
+      "explanation": "A 会把实际执行事实记错；B 破坏密钥与供应商隔离；D 忽略能力差异和观测准确性。逻辑别名稳定不意味着所有真实模型能力等价。",
+      "sourceRefs": [
+        "1.6 4.1 为什么平台模型名不能直接等于供应商模型名？",
+        "1.6 6.6 为什么每次调用都要形成统一响应？",
+        "1.6 6.7 Trace 为什么不能只写一句日志？"
+      ]
+    },
+    {
+      "id": "1.6-03",
+      "order": 3,
+      "level": 2,
+      "type": "single",
+      "title": "入口拒绝未支持组合",
+      "prompt": "1.6 原型明确禁止 stream 与 response_schema 同时使用，主要原因是什么？",
+      "options": [
+        {
+          "key": "A",
+          "text": "任何供应商都不可能流式生成 JSON"
+        },
+        {
+          "key": "B",
+          "text": "原型没有增量 JSON 验收能力，应在发出内容前拒绝未支持组合"
+        },
+        {
+          "key": "C",
+          "text": "只要加上只返回 JSON 的 Prompt 就可取消该限制"
+        },
+        {
+          "key": "D",
+          "text": "先输出半段内容，最后验证失败后再改 HTTP 状态码即可"
+        }
+      ],
+      "answer": [
+        "B"
+      ],
+      "referenceAnswer": "选 B。这是原型的实现边界，而不是对所有供应商能力的判断。入口应拒绝未支持组合，并证明 Provider 调用次数为零。若要扩展结构化流式，必须明确完整对象、校验与提交边界。",
+      "explanation": "A 捏造普遍能力结论；C 把自然语言要求当成确定性验收；D 忽略流已开始后内容无法撤回、HTTP 状态通常不能重写的事实。",
+      "sourceRefs": [
+        "1.6 3.3 一份统一请求为什么只保留这些字段？",
+        "1.6 5.5 为什么流式成功不能只看“连接关闭了”？"
+      ]
+    },
+    {
+      "id": "1.6-04",
+      "order": 4,
+      "level": 2,
+      "type": "multiple",
+      "title": "哪些错误适合网络重试",
+      "prompt": "多选题，选出所有符合 1.6 原型网络重试分类的情况。假定仍有尝试预算，且尚未向客户端输出文本。",
+      "options": [
+        {
+          "key": "A",
+          "text": "Provider 连接失败或调用超时"
+        },
+        {
+          "key": "B",
+          "text": "Provider 暂时限流"
+        },
+        {
+          "key": "C",
+          "text": "Prompt 模板不存在或缺少必填变量"
+        },
+        {
+          "key": "D",
+          "text": "模型返回了合法 JSON，但未通过 response_schema"
+        }
+      ],
+      "answer": [
+        "A",
+        "B"
+      ],
+      "referenceAnswer": "选 A、B。连接、超时和限流属于原型列出的可恢复瞬时故障，可以有限重试。模板错误应在调用前结束；结构错误属于输出验收问题，应明确失败或进入另行设计的有限格式修复。",
+      "explanation": "重试依据是相同请求是否可能自行恢复，不是是否出现异常。C 是确定性装配错误；D 说明生成已完成但结果不合法，不能被伪装成网络故障。1.6 的分类也不能未经扩展就宣称覆盖所有 5xx。",
+      "sourceRefs": [
+        "1.6 3.4 Prompt 模板怎样装配进消息？",
+        "1.6 5.3 模型已经返回 JSON，为什么还要在 Gateway 校验？",
+        "1.6 6.1 为什么不能写成 except Exception: retry？"
+      ]
+    },
+    {
+      "id": "1.6-05",
+      "order": 5,
+      "level": 3,
+      "type": "single",
+      "title": "流式首块后的失败",
+      "prompt": "差旅助手已收到 Gateway 的两个 content.delta。随后主 Provider 连接中断。按 1.6 原型的语义，哪种处理正确？",
+      "options": [
+        {
+          "key": "A",
+          "text": "切换备用模型从头生成，并把新文本直接接在旧文本后"
+        },
+        {
+          "key": "B",
+          "text": "静默关闭连接，并把已有文本标成成功答案"
+        },
+        {
+          "key": "C",
+          "text": "发送 response.failed，保留部分内容；不透明 fallback"
+        },
+        {
+          "key": "D",
+          "text": "重试主模型，去掉相同开头就能保证语义一致"
+        }
+      ],
+      "answer": [
+        "C"
+      ],
+      "referenceAnswer": "选 C。首块以前可以按预算重试或切换；发出文本以后，原型停止透明恢复并发出失败事件。部分文本可以保留，但不构成本次流完整成功的证据。",
+      "explanation": "A 会造成重复、断句和跨模型语义冲突；B 混淆部分输出与完成；D 没有状态协议支持，字符串去重也不能证明生成语义连续。只有明确完成事件才支持成功判定。",
+      "sourceRefs": [
+        "1.6 5.5 为什么流式成功不能只看“连接关闭了”？",
+        "1.6 6.4 流式 fallback 为什么以“是否已经输出”为边界？"
+      ]
+    },
+    {
+      "id": "1.6-06",
+      "order": 6,
+      "level": 3,
+      "type": "multiple",
+      "title": "可信响应与 Trace",
+      "prompt": "多选题。审查一个已经完成 fallback 的结构化调用，下列哪些条件属于可信响应与 Trace 的必要边界？",
+      "options": [
+        {
+          "key": "A",
+          "text": "parsed 仅在 JSON 解析和 Schema 校验都通过后返回"
+        },
+        {
+          "key": "B",
+          "text": "attempts 应对应所有候选上的真实上游调用次数"
+        },
+        {
+          "key": "C",
+          "text": "记录实际模型及 Prompt 名称、版本，便于复盘"
+        },
+        {
+          "key": "D",
+          "text": "默认把 API Key、完整 Prompt 和回答存入普通日志"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C"
+      ],
+      "referenceAnswer": "选 A、B、C。解析对象必须经过验收，尝试次数必须真实，执行模型与 Prompt 版本必须可定位。D 不成立：凭据不应进入日志，敏感正文的采样、脱敏、保存期限和访问权限需要独立治理。",
+      "explanation": "这三项分别证明结果可用、预算与调用事实可信、行为配置可追踪。仅记录请求模型或外层重试次数会造成失真；完整内容留存也不是 Trace 的默认职责。",
+      "sourceRefs": [
+        "1.6 5.3 模型已经返回 JSON，为什么还要在 Gateway 校验？",
+        "1.6 6.2 为什么要关闭 SDK 重试，再由 Gateway 统一执行？",
+        "1.6 6.6 为什么每次调用都要形成统一响应？",
+        "1.6 6.7 Trace 为什么不能只写一句日志？"
+      ]
+    },
+    {
+      "id": "1.6-07",
+      "order": 7,
+      "level": 4,
+      "type": "short",
+      "title": "一次调用与一次任务",
+      "prompt": "一个差旅 Agent Run 含三个 Loop Step。每步的 Gateway 调用最多尝试主端点两次、备用端点两次；Loop 遇到失败还会补充上下文后重新发起调用。请解释 Gateway 重试与 Loop 重试的区别，说明怎样关联各类 ID、统计真实调用，并避免任务预算失控。",
+      "referenceAnswer": "Gateway 重试是在输入、Prompt 版本、Schema 和目标保持不变时恢复模型服务的瞬时故障；Loop 补充上下文或改变计划后再发起请求，任务状态已变化，属于新的业务决策与模型调用。不能把二者当作同一隐藏循环。\n一次 Run 关联多个 Step，每个 Step 可以包含多个 Gateway request_id，供应商响应 ID 则定位具体上游响应；业务差旅单号用于领域对象，不代替调用关联 ID。可信关联信息由系统注入，不由模型生成。\n每次上游 attempt 都应计数并记录实际模型，关闭 SDK 隐藏重试；请求成功不能只记录最后一次。单次四次上限并不能限制整个 Run，总数还会随 Step、Loop 重试和候选尝试累计。\nHarness 应把每次响应的 attempts、Token、成本和错误码纳入 Run 剩余预算，再决定是否继续。扩展设计若增加格式修复，修复消耗也应进入同一任务预算，并与网络恢复区分；1.6 原型尚未实现内部修复循环或完整 Harness 状态管理。",
+      "explanation": "局部最大重试次数不是全局预算。记录粒度和职责分开后，才能说明一次业务任务为什么发生多次模型调用，也能防止 SDK、Gateway 与 Loop 的恢复机制相乘。答案不应声称 1.6 已具备完整任务预算设施。",
+      "rubric": [
+        {
+          "point": "解释输入不变的网关恢复与状态变化的 Loop 决策区别",
+          "score": 3
+        },
+        {
+          "point": "准确区分 Run/Step、request_id、供应商响应 ID 与业务 ID",
+          "score": 2
+        },
+        {
+          "point": "关闭隐藏重试并统计每个真实上游 attempt 与实际模型",
+          "score": 2
+        },
+        {
+          "point": "提出 Run 级 Token、成本、时间或调用总数预算，包含扩展修复并注明原型边界",
+          "score": 3
+        }
+      ],
+      "sourceRefs": [
+        "1.6 2.2 请求 ID、Trace ID 和业务 ID 为什么不能混用？",
+        "1.6 6.5 Gateway 重试和 Agent Loop 重试有什么区别？",
+        "1.6 5.3 模型已经返回 JSON，为什么还要在 Gateway 校验？"
+      ]
+    },
+    {
+      "id": "1.6-08",
+      "order": 8,
+      "level": 4,
+      "type": "short",
+      "title": "审查错误恢复代码",
+      "prompt": "以下为错误示例的伪代码，不代表笔记原型。指出至少四个有实质影响的问题，并给出关键修正及可以证明修正的测试。",
+      "code": "client = SDKClient(max_retries=2)\ntry:\n    async for delta in client.stream(request):\n        yield content_delta(delta)\nexcept Exception:\n    async for delta in backup.stream(request):\n        yield content_delta(delta)\nrecord_trace(attempts=1, model=request.model)\nyield response_completed()",
+      "referenceAnswer": "问题一：SDK 开启隐藏重试，外层仍可能切换候选，attempts=1 与真实请求数不一致。应关闭 SDK 内部重试，在 Gateway 统一统计每个真实 attempt。\n问题二：宽泛捕获所有异常后都 fallback，没有区分认证、配置、输入、输出校验与瞬时网络错误。应使用稳定错误分类，仅对可恢复故障按预算恢复；确定性错误应提前停止。\n问题三：没有检查备用模型是否满足本次请求的结构化等能力。应在尝试候选前完成能力校验，不合格候选不得被调用。\n问题四：已输出文本后仍从备用模型重新生成并拼接。应记录 emitted 状态；首块后失败发送 response.failed 并结束，不能透明 fallback。\n问题五：无论执行是否完整都发 completed，Trace 只记录请求模型。应根据真实结局记录成功或失败及错误码、实际模型、尝试次数和 Prompt 版本，失败不能包装成成功。\n测试使用 Stub：先产生一个 delta 再抛超时，断言备用调用为零且没有 completed；首块前失败时按能力与预算切换；认证失败只调用一次；不支持结构的备用不调用；主两次失败、备用成功时记录实际备用和 attempts=3。",
+      "explanation": "问题跨越恢复层、能力层、流协议和观测层。只增加异常日志不会修复错误语义；测试必须检查真实调用计数、备用是否访问、终态事件与 Trace，不能仅断言最后得到一段文字。",
+      "rubric": [
+        {
+          "point": "识别 SDK 隐藏重试与虚假 attempts，提出统一真实计数",
+          "score": 2
+        },
+        {
+          "point": "识别宽泛错误恢复及缺少备用能力检查",
+          "score": 2
+        },
+        {
+          "point": "识别首块后 fallback 与无条件 completed，提出明确失败收口",
+          "score": 3
+        },
+        {
+          "point": "提出实际模型与失败 Trace 修正，并给出有调用/事件断言的故障测试",
+          "score": 3
+        }
+      ],
+      "sourceRefs": [
+        "1.6 4.3 为什么 API Key 只能留在 Gateway？",
+        "1.6 6.1 为什么不能写成 except Exception: retry？",
+        "1.6 6.3 fallback 为什么必须先做能力检查？",
+        "1.6 6.4 流式 fallback 为什么以“是否已经输出”为边界？",
+        "1.6 7.6 检查点五：测试能否证明失败边界？"
+      ]
+    },
+    {
+      "id": "1.6-09",
+      "order": 9,
+      "level": 5,
+      "type": "short",
+      "title": "设计企业 Agent 最小闭环",
+      "prompt": "为企业差旅助手设计 1.6 范围内的最小 Gateway。助手请求逻辑模型名、受控知识决策模板与 AgentDecision Schema。请给出完整调用主链、各层职责、失败处理与至少五项验收；说明哪些校验必须留在业务 Agent，哪些生产能力本次不承诺实现。",
+      "referenceAnswer": "调用链为：入口验证统一请求与允许字段、长度、数量、超时和能力组合；按模板名称与版本读取受控 Prompt，检查变量后装配消息；解析逻辑模型配置并验证候选能力；Provider 转换供应商协议并读取受控凭据；普通返回做 JSON 解析与 Schema 校验，或流式转为增量、完成/失败事件；对限定瞬时故障执行有限重试和能力等价 fallback；记录 Trace，返回统一响应或稳定错误。\nGateway 管理调用治理，Provider 隔离真实模型、地址、SDK 对象与协议差异，Harness/Loop 决定模板与上下文为何使用、如何推进任务。密钥只在 Gateway，SDK 隐藏重试关闭；实际模型与真实 attempts、Prompt 版本、用量和延迟进入证据。\n未知模型、缺变量和非法组合在上游调用前停止；非法 JSON 或 Schema 失败不能产生 parsed，也不进入网络重试；流式首块前可有限恢复，首块后失败明确结束。1.6 不同时支持 stream 与 response_schema，也没有内部格式修复循环。\nAgent 在 parsed 通过后仍验证 AgentDecision 业务组合，例如 finish 必须带答案；权限、工具副作用与制度事实由业务和运行框架判断，不能因通用 Schema 合法就直接执行。\n验收可包括：未知模型零调用、缺变量零调用、非法组合零调用、首次连接失败后 attempts=2、主两次失败后备用成功的 actual_model 与 attempts=3、非法输出无 parsed、首块后失败不调用备用、Trace 无密钥和未经允许的敏感正文。复杂路由、多副本、共享限流、跨区容灾与完整 Run 管理属于后续演进。",
+      "explanation": "完整闭环必须同时给出输入契约、受控执行与结果出口。良好的设计不只是列组件名称，还要明确错误发生时哪里停止，以及测试如何证明不允许的调用和动作没有发生。",
+      "rubric": [
+        {
+          "point": "主链覆盖契约、模板、能力、Provider、结果校验/流式和统一出口",
+          "score": 3
+        },
+        {
+          "point": "职责、凭据、实际模型及真实 Trace 边界清楚",
+          "score": 2
+        },
+        {
+          "point": "正确区分确定性错误、瞬时恢复、结构失败与首块边界",
+          "score": 2
+        },
+        {
+          "point": "保留业务校验并给出至少五项有效验收，准确声明原型和生产范围",
+          "score": 3
+        }
+      ],
+      "sourceRefs": [
+        "1.6 9.1 一条主链怎样收束全文？",
+        "1.6 7.7 接入 Agent Loop 时，哪一段需要替换？",
+        "1.6 7.6 检查点五：测试能否证明失败边界？",
+        "1.6 8.7 哪些内容不应在本节继续扩展？"
+      ]
+    },
+    {
+      "id": "1.6-10",
+      "order": 10,
+      "level": 5,
+      "type": "short",
+      "title": "迁移 Provider 与流式用量",
+      "prompt": "团队准备把当前文本增量 Provider 扩展为新的 Responses 类 Provider，并将内存 Trace 持久化。请设计迁移点、内部事件与恢复边界，说明用量和总预算怎样记账、哪些兼容性需要重新验证，以及如何避免误称这些能力已由 1.6 原型完成。",
+      "referenceAnswer": "应在适配层新增 Provider，而不是让 FastAPI 路由或 Agent Loop 直接解析新供应商事件。把供应商文本增量、完成、失败和未完成状态映射为 Gateway 内部类型化事件；完成事件需要携带可靠的最终 Usage，不能把原型只输出字符串、流式 Token 暂为零的边界当成完整计费能力。\n重新验证接口协议、支持的生成参数、JSON Schema/JSON Object 模式、流式完成语义、Usage 字段及错误映射。逻辑模型别名保持平台语义，真实模型 ID、地址和能力配置更新；备用候选仍要满足请求能力，不能仅改 URL 就认为迁移完成。\n执行层继续统一有限恢复、真实 attempts 和首块边界。首个内容 delta 后失败不得从头生成拼接；显式完成、失败和未完成分别收口。若升级唯一终态、取消传播或修复，应作为扩展设计，保证同次调用的最终用量不重复落账。\n退避策略可以来自 ModelConfig 或独立策略对象，执行仍在网关循环；等待、重试和候选切换都受调用截止时间约束。Harness 继续承担 Run 总预算，扩展修复调用也需关联原调用并计入同一任务消耗。\n用 Trace Repository 替换内存 append，存请求/实际模型、Prompt 版本、真实 Token、成本、延迟、次数、状态和错误码；查询补分页、过滤与访问控制，敏感正文另行治理。契约测试和 Stub 故障注入验证事件、用量、首块恢复、能力不匹配和存储失败。1.6 只跑通最小闭环，以上新事件、可靠流式用量和持久化设施不能被讲成已有实现。",
+      "explanation": "迁移的核心是隔离协议变化并重新证明语义，不是复制 SDK 样板。文本、终态、Usage 和预算必须配套演进，才能让新的恢复能力与它依赖的状态、计费证据保持一致。",
+      "rubric": [
+        {
+          "point": "迁移位于 Provider 层，设计含文本、终态、Usage 的内部事件",
+          "score": 3
+        },
+        {
+          "point": "重新验证能力、协议、错误和逻辑别名/真实模型映射",
+          "score": 2
+        },
+        {
+          "point": "保持首块恢复边界与真实计数，扩展预算及唯一记账设计合理",
+          "score": 2
+        },
+        {
+          "point": "Repository 持久化、访问治理与有效测试完整，并明确原型未实现范围",
+          "score": 3
+        }
+      ],
+      "sourceRefs": [
+        "1.6 8.2 Streaming Token Usage 应该从哪里取得？",
+        "1.6 8.3 Responses 事件应该加载在哪里？",
+        "1.6 8.4 Provider 级指数退避应该加在哪里？",
+        "1.6 8.5 Trace 应该怎样落数据库？",
+        "1.6 7.8 学习时应该先自己写，还是先让 AI 写？"
+      ]
+    }
+  ]
+}
