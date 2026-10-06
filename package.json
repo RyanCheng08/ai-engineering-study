@@ -5,6 +5,7 @@
   "description": "第一章学习中心：七节笔记、同页自测、术语与讲解视频",
   "type": "module",
   "scripts": {
+    "test": "node tests/file-store.test.cjs",
     "build": "python 可视化页面/测试题/build_quiz.py && node 可视化页面/build-notes.mjs && python scripts/build-site.py"
   },
   "engines": {

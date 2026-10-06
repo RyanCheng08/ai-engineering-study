@@ -174,7 +174,7 @@ quizBank.lessons.forEach((lesson,i)=>{
   });
 });
 const css = ['notes.css','glossary.css','learning-workspace.css','lesson-quiz.css'].map(file=>fs.readFileSync(path.join(out,file),'utf8')).join('\n');
-const script = ['glossary.js','lesson-quiz.js','notes.js'].map(file=>fs.readFileSync(path.join(out,file),'utf8')).join('\n');
+const script = ['glossary.js','quiz-file-store.js','lesson-quiz.js','notes.js'].map(file=>fs.readFileSync(path.join(out,file),'utf8')).join('\n');
 const chapterLinks = chapters.map((c,i)=>'<a class="chapter-link'+(i===0?' active':'')+'" data-chapter="'+(i+1)+'" href="#'+c.id+'"'+(i===0?' aria-current="page"':'')+'><span class="number">1.'+(i+1)+'</span><span class="chapter-link-copy"><span>'+labels[i]+'</span><small data-chapter-progress="'+(i+1)+'">自测 0 / 10</small></span></a>').join('');
 const chapterMarkup = chapters.map((c,i)=>{
   const flow = pipelines[i].map(([label,description],j)=>i===0 ? '<button type="button" class="flow-step stage-button" data-stage="'+j+'" aria-pressed="'+(j===0?'true':'false')+'"><b>'+escape(label)+'</b><span>'+escape(description)+'</span></button>' : '<div class="flow-step"><b>'+((i===6)?'':(j+1)+' · ')+escape(label)+'</b><span>'+escape(description)+'</span></div>').join('');

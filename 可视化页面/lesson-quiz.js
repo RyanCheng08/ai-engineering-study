@@ -27,6 +27,8 @@
   const byQuestion = new Map(questions.map(q => [q.id, q]));
   let state = emptyState(), activeNumber = null, activeIndex = 0, mounted = false;
   let saveTimer, dirty = false, storageAvailable = true, loadNotice = '';
+  let fileStore = null, fileCandidate = null, fileBusy = false;
+  let fileStatus = {phase: 'disconnected', name: '', detail: ''};
   const el = id => host.querySelector('#quiz-' + id);
   const dispatch = (name, detail) => document.dispatchEvent(new CustomEvent('chapterquiz:' + name, {detail}));
 
@@ -137,20 +139,106 @@
     dispatch('progress', {chapterNumber: activeNumber || lessons[state.selected].number, reason, summary: summary(activeNumber || lessons[state.selected].number), lessons: lessons.map(l => summary(l.number)), storageAvailable});
   }
   function statusText() {
-    return storageAvailable ? '作答保存在当前浏览器，可关闭后继续。' : '当前浏览器无法可靠保存进度，请导出作答记录。';
+    return !storageAvailable ? '浏览器保存失败，请连接作答文件或导出记录。' : dirty ? '输入等待保存…' : '浏览器内已保存，可关闭后继续。';
   }
   function persist(reason = 'save', remember = true) {
-    clearTimeout(saveTimer); dirty = false;
+    clearTimeout(saveTimer);
     if (remember && activeNumber) {state.selected = lessons.indexOf(lesson()); state.positions[activeNumber] = activeIndex;}
     state.updatedAt = new Date().toISOString();
-    try {localStorage.setItem(KEY, JSON.stringify(state)); storageAvailable = true;}
-    catch {storageAvailable = false;}
+    try {localStorage.setItem(KEY, JSON.stringify(state)); storageAvailable = true; dirty = false;}
+    catch {storageAvailable = false; dirty = true;}
+    if (fileStore) fileStore.save(fileSnapshot());
     if (mounted) {el('saved').textContent = statusText(); el('saved').classList.toggle('quiz-warning', !storageAvailable);}
+    renderFilePanel();
     progress(reason);
   }
-  function scheduleSave() {dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(() => persist('draft'), 350);}
+  function scheduleSave() {dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(() => persist('draft'), 350); if(mounted) el('saved').textContent = statusText(); renderFilePanel();}
   function announce(text) {if (mounted) el('announce').textContent = text;}
   function focus(id) {const target=el(id);target?.focus({preventScroll:true});if(target&&['result','question-title'].includes(id))target.scrollIntoView({block:'start',behavior:'smooth'});}
+
+  function fileSnapshot() {
+    return JSON.parse(JSON.stringify({...state, course: '第一章 1.1～1.7 递进测试'}));
+  }
+  function renderFilePanel() {
+    if (!mounted || !el('file-status')) return;
+    const supported = !!fileStore?.supported;
+    const phase = fileStatus.phase;
+    const messages = {
+      unsupported: '当前浏览器不支持文件自动保存。请在桌面 Chrome / Edge 中打开本站，或使用“导出作答记录”和“导入作答记录”。',
+      disconnected: '未连接作答文件。首次选择文件后，选项和文字答案会自动写入这个文件。',
+      permission: '需要重新授权文件访问。点击“恢复文件连接”后继续自动保存。',
+      ready: '文件已连接，等待保存。', saving: '正在写入作答文件…',
+      saved: '作答文件已保存。', error: '文件保存未完成，请重试；当前作答仍保留在页面中。'
+    };
+    let text = messages[phase] || messages.disconnected;
+    if (fileStatus.name) text += ' 文件：' + fileStatus.name + '。';
+    if (phase === 'saved' && fileStatus.savedAt) text += ' 保存时间：' + new Date(fileStatus.savedAt).toLocaleTimeString('zh-CN') + '。';
+    if (storageAvailable && dirty && ['ready', 'saved'].includes(phase)) text += ' 最新输入等待保存。';
+    if (fileStatus.detail && ['error', 'permission'].includes(phase)) text += ' ' + fileStatus.detail;
+    if (fileStatus.remembered === false && ['ready','saving','saved'].includes(phase)) text += ' 本次连接未能记忆，重新打开网页后需再次选择文件。';
+    el('file-status').textContent = text;
+    el('file-status').classList.toggle('quiz-warning', ['error', 'permission'].includes(phase));
+    const pending = !!fileCandidate;
+    el('file-conflict').hidden = !pending;
+    if (pending) el('file-conflict-text').textContent = '文件“' + fileCandidate.name + '”和当前浏览器记录不同。选择使用哪一份；选择前不会覆盖文件。';
+    for (const button of host.querySelectorAll('[data-quiz-action="file-new"],[data-quiz-action="file-open"]')) button.disabled = !supported || fileBusy || pending;
+    el('file-reconnect').hidden = phase !== 'permission';
+    el('file-save').hidden = !['ready', 'saving', 'saved', 'error'].includes(phase);
+    el('file-disconnect').hidden = !fileStatus.name;
+    for (const id of ['file-reconnect','file-save','file-disconnect','file-use','file-current','file-cancel']) el(id).disabled = fileBusy;
+  }
+  async function acceptFileCandidate(useFile) {
+    const candidate = fileCandidate;
+    if (!candidate || !fileStore) return;
+    fileBusy = true; renderFilePanel();
+    try {
+      if (await fileStore.acceptCandidate() !== true) throw new Error('文件连接已变化，请重新选择作答文件。');
+      if (useFile && candidate.record) {
+        try {localStorage.setItem(KEY + '-before-file-restore', JSON.stringify(state));} catch {}
+        state = sanitize(candidate.record);
+        if (activeNumber) activeIndex = state.positions[activeNumber] || 0;
+      }
+      fileCandidate = null;
+      persist('file-connect', false);
+      if (mounted && activeNumber) {
+        render();
+        if (!host.hidden) dispatch('position', {chapterNumber: activeNumber, questionId: question().id});
+        transferStatus(useFile ? '已从作答文件恢复记录，后续作答会自动保存到文件。' : '已连接作答文件，后续作答会自动保存到文件。');
+      }
+    } catch (error) {
+      if (mounted) transferStatus('文件连接失败：' + error.message, true);
+    } finally {fileBusy = false; renderFilePanel();}
+  }
+  async function handleFileCandidate(candidate) {
+    if (!candidate) {renderFilePanel(); return;}
+    fileCandidate = candidate;
+    const record = candidate.record;
+    const currentHasWork = Object.values(state.answers).some(hasWork);
+    const sameAnswers = !record || questions.every(q => JSON.stringify(state.answers[q.id] || emptyAnswer()) === JSON.stringify(record.answers[q.id] || emptyAnswer()));
+    if (!record || sameAnswers) await acceptFileCandidate(false);
+    else if (!currentHasWork) await acceptFileCandidate(true);
+    else {renderFilePanel(); if(mounted && !host.hidden) focus('file-conflict');}
+  }
+  async function fileAction(action) {
+    if (!fileStore || fileBusy) return;
+    if (action === 'file-use' || action === 'file-current') {await acceptFileCandidate(action === 'file-use'); return;}
+    if (action === 'file-cancel') {fileStore.cancelCandidate(); fileCandidate = null; renderFilePanel(); return;}
+    if (action === 'file-save') {persist('file-manual'); return;}
+    if (action === 'file-disconnect') {
+      fileBusy = true; renderFilePanel();
+      try {await fileStore.disconnect(); fileCandidate = null;} finally {fileBusy = false; renderFilePanel();}
+      return;
+    }
+    fileBusy = true; renderFilePanel();
+    try {
+      // Call the picker immediately within this user gesture.
+      const candidate = await (action === 'file-new' ? fileStore.chooseNew() : action === 'file-open' ? fileStore.chooseExisting() : fileStore.reconnect());
+      fileBusy = false;
+      await handleFileCandidate(candidate);
+    } catch (error) {
+      if (error.name !== 'AbortError' && mounted) transferStatus('未能连接作答文件：' + error.message, true);
+    } finally {fileBusy = false; renderFilePanel();}
+  }
 
   function mount() {
     if (mounted) return;
@@ -160,8 +248,10 @@
       '<div class="quiz-progress" id="quiz-progress" role="progressbar" aria-label="本节完成进度" aria-valuemin="0"><span id="quiz-progress-fill"></span></div><article class="quiz-card" id="quiz-card"></article>' +
       '<nav class="quiz-bottom-nav" aria-label="题目翻页"><button class="quiz-btn" type="button" data-quiz-action="previous" id="quiz-previous">← 上一题</button><button class="quiz-btn quiz-primary" type="button" data-quiz-action="next" id="quiz-next">下一题 →</button><button class="quiz-btn" type="button" data-quiz-action="next-lesson" id="quiz-next-lesson">下一节自测 →</button></nav>' +
       '<div class="quiz-tools" aria-label="作答记录与学习资料"><a class="quiz-btn" href="第一章测试题-题目版.txt" download>70 题 · 题目 TXT</a><a class="quiz-btn" href="第一章测试题-答案解析.txt" download>答案与评分 TXT</a><button class="quiz-btn" type="button" data-quiz-action="print-questions">打印本节题目</button><button class="quiz-btn" type="button" data-quiz-action="print-answers">打印本节答案</button><button class="quiz-btn" type="button" data-quiz-action="export">导出作答记录</button><button class="quiz-btn" type="button" data-quiz-action="import">导入作答记录</button><input id="quiz-import-file" type="file" accept=".json,application/json" hidden></div>' +
+      '<section class="quiz-file-panel" aria-labelledby="quiz-file-title"><h3 id="quiz-file-title">作答文件 · 自动保存</h3><p id="quiz-file-status" role="status"></p><div class="quiz-file-actions"><button class="quiz-btn" type="button" data-quiz-action="file-new">新建作答文件</button><button class="quiz-btn" type="button" data-quiz-action="file-open">连接已有文件</button><button class="quiz-btn" id="quiz-file-reconnect" type="button" data-quiz-action="file-reconnect" hidden>恢复文件连接</button><button class="quiz-btn" id="quiz-file-save" type="button" data-quiz-action="file-save" hidden>立即保存 / 重试</button><button class="quiz-btn" id="quiz-file-disconnect" type="button" data-quiz-action="file-disconnect" hidden>断开文件</button></div><div class="quiz-file-conflict" id="quiz-file-conflict" tabindex="-1" hidden><p id="quiz-file-conflict-text"></p><button class="quiz-btn" id="quiz-file-use" type="button" data-quiz-action="file-use">使用文件记录</button><button class="quiz-btn" id="quiz-file-current" type="button" data-quiz-action="file-current">用当前记录覆盖文件</button><button class="quiz-btn" id="quiz-file-cancel" type="button" data-quiz-action="file-cancel">取消连接</button></div><p class="quiz-footnote">作答文件保存在本机，不上传 GitHub。首次需选定文件并授权；重新打开网页后，浏览器可能要求恢复授权。关闭网页前请确认“作答文件已保存”。</p></section>' +
       '<p class="quiz-saved" id="quiz-saved"></p><p class="quiz-transfer-status" id="quiz-transfer-status" role="status" tabindex="-1" hidden></p><p class="quiz-footnote">多选须全部选对且无错选才得 10 分。短答按评分要点自评，页面不自动判断文字答案。直接看答案不计分；重新作答后可参加测试。</p><p class="quiz-sr-only" id="quiz-announce" role="status" aria-live="polite" aria-atomic="true"></p>';
     mounted = true;
+    renderFilePanel();
     if (loadNotice) {el('transfer-status').hidden = false; el('transfer-status').textContent = loadNotice;}
   }
   function stateClass(q) {
@@ -277,6 +367,7 @@
     if (!button || !host.contains(button) || button.disabled || host.hidden || !activeNumber) return;
     if (button.dataset.quizQuestion !== undefined) {navigateQuestion(Number(button.dataset.quizQuestion)); return;}
     const action = button.dataset.quizAction, q = question(), a = answer(q);
+    if (action?.startsWith('file-')) {void fileAction(action); return;}
     if (action === 'previous') {navigateQuestion(activeIndex - 1); return;}
     if (action === 'next') {navigateQuestion(activeIndex + 1); return;}
     if (action === 'resume') {navigateQuestion(state.positions[activeNumber] || 0); return;}
@@ -302,6 +393,7 @@
     if (action === 'self-confirm' && q.type === 'short' && a.revealed && !a.studyOnly && !a.selfConfirmed) {a.selfConfirmed = true; persist('score'); render('result'); announce(resultText(q, a));}
   });
   window.addEventListener('pagehide', () => {if (dirty) persist('draft');});
+  document.addEventListener('visibilitychange', () => {if(document.visibilityState === 'hidden' && dirty) persist('draft');});
   window.ChapterQuiz = Object.freeze({
     show(chapterNumber, questionId) {
       const l = byNumber.get(String(chapterNumber));
@@ -318,4 +410,11 @@
     hide() {if (dirty) persist('draft'); host.hidden = true;},
     summary
   });
+  if (window.QuizFileStore) {
+    fileStore = window.QuizFileStore.create({validate: sanitize, onStatus(status) {fileStatus = status; renderFilePanel();}});
+    fileBusy = true;
+    void fileStore.initialize().then(handleFileCandidate).catch(error => {
+      fileStatus = {phase: 'error', detail: '文件连接未能恢复：' + error.message}; renderFilePanel();
+    }).finally(() => {fileBusy = false; renderFilePanel();});
+  } else {fileStatus = {phase: 'unsupported'}; renderFilePanel();}
 })();
