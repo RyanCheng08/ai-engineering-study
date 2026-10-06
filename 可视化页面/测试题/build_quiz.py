@@ -64,12 +64,12 @@ def main():
     bank={'title':'第一章 · 70道递进测试题','version':1,'source':'第一章 学习笔记.md','lessons':lessons}
     data=json.dumps(bank,ensure_ascii=False)
     page=(ROOT/'quiz-redirect-template.html').read_text(encoding='utf-8')
-    (EXPORT/'chapter-one-quiz.html').write_text(page,encoding='utf-8')
-    (EXPORT/'第一章测试题-题目版.txt').write_text(paper(lessons),encoding='utf-8-sig')
-    (EXPORT/'第一章测试题-答案解析.txt').write_text(paper(lessons,True),encoding='utf-8-sig')
-    (ROOT/'question-bank.json').write_text(json.dumps(bank,ensure_ascii=False,indent=2),encoding='utf-8')
+    (EXPORT/'chapter-one-quiz.html').write_text(page,encoding='utf-8',newline='\n')
+    (EXPORT/'第一章测试题-题目版.txt').write_text(paper(lessons),encoding='utf-8-sig',newline='\n')
+    (EXPORT/'第一章测试题-答案解析.txt').write_text(paper(lessons,True),encoding='utf-8-sig',newline='\n')
+    (ROOT/'question-bank.json').write_text(json.dumps(bank,ensure_ascii=False,indent=2),encoding='utf-8',newline='\n')
     report={'sectionCount':7,'questionCount':70,'single':28,'multiple':14,'short':28,'objectiveMaxPerSection':60,'selfAssessedMaxPerSection':40,'sourceSha256':hashlib.sha256((EXPORT.parent/'第一章 学习笔记.md').read_bytes()).hexdigest(),'perSection':[{'number':l['number'],'count':len(l['questions'])} for l in lessons]}
-    (ROOT/'build-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+    (ROOT/'build-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8',newline='\n')
     print(json.dumps(report,ensure_ascii=False))
 
 if __name__=='__main__':main()
