@@ -10,7 +10,7 @@
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
   const emptyAnswer = () => ({choice: [], written: '', revealed: false, studyOnly: false, rubricSelected: [], selfConfirmed: false});
-  const emptyState = () => ({version: 1, selected: 0, positions: {}, answers: {}});
+  const emptyState = () => ({version: 1, selected: 0, positions: {}, answers: {}, favorites: []});
   let BANK;
   try {
     BANK = JSON.parse(document.getElementById('page-data')?.textContent || '{}').quizBank;
@@ -26,6 +26,7 @@
   const questions = lessons.flatMap(l => l.questions);
   const byQuestion = new Map(questions.map(q => [q.id, q]));
   let state = emptyState(), activeNumber = null, activeIndex = 0, mounted = false;
+  let collectionView = false;
   let saveTimer, dirty = false, storageAvailable = true, loadNotice = '';
   let fileStore = null, fileCandidate = null, fileBusy = false;
   let fileStatus = {phase: 'disconnected', name: '', detail: ''};
@@ -37,7 +38,7 @@
   function sanitize(raw) {
     const fail = message => {throw new Error(message);};
     if (!isObject(raw) || raw.version !== 1) fail('记录版本不支持，需为 version: 1。');
-    const allowed = ['version', 'selected', 'positions', 'answers', 'updatedAt', 'course', 'exportedAt', 'scores'];
+    const allowed = ['version', 'selected', 'positions', 'answers', 'favorites', 'updatedAt', 'course', 'exportedAt', 'scores'];
     if (Object.keys(raw).some(k => !allowed.includes(k))) fail('记录含有不支持的顶层字段。');
     if (!Number.isInteger(raw.selected) || raw.selected < 0 || raw.selected >= lessons.length) fail('selected 小节位置无效。');
     if (!isObject(raw.positions) || !isObject(raw.answers)) fail('positions 与 answers 必须是对象。');
@@ -47,6 +48,11 @@
     if (own(raw, 'course') && (typeof raw.course !== 'string' || raw.course.length > 200)) fail('course 字段无效。');
     if (own(raw, 'scores') && !Array.isArray(raw.scores)) fail('scores 元数据必须为数组。');
     const clean = emptyState();
+    // Missing favorites is the original v1 format, so existing records still load.
+    if (own(raw, 'favorites')) {
+      if (!Array.isArray(raw.favorites) || new Set(raw.favorites).size !== raw.favorites.length || raw.favorites.some(id => typeof id !== 'string' || !byQuestion.has(id))) fail('收藏题号无效或重复。');
+      clean.favorites = [...raw.favorites];
+    }
     clean.selected = raw.selected;
     if (raw.updatedAt) clean.updatedAt = raw.updatedAt;
     for (const [number, index] of Object.entries(raw.positions)) {
@@ -76,6 +82,7 @@
     const result = sanitize(current);
     const currentTime = Date.parse(current.updatedAt || ''), legacyTime = Date.parse(legacy.updatedAt || '');
     const legacyNewer = Number.isFinite(legacyTime) && (!Number.isFinite(currentTime) || legacyTime > currentTime);
+    result.favorites = [...new Set([...result.favorites, ...legacy.favorites])];
     for (const [id, incoming] of Object.entries(legacy.answers)) {
       const present = result.answers[id];
       if (!present || !hasWork(present) && hasWork(incoming) || hasWork(present) && hasWork(incoming) && legacyNewer) result.answers[id] = incoming;
@@ -165,7 +172,7 @@
     const phase = fileStatus.phase;
     const messages = {
       unsupported: '当前浏览器不支持文件自动保存。请在桌面 Chrome / Edge 中打开本站，或使用“导出作答记录”和“导入作答记录”。',
-      disconnected: '未连接作答文件。首次选择文件后，选项和文字答案会自动写入这个文件。',
+      disconnected: '未连接作答文件。首次选择文件后，选项、文字答案和收藏会自动写入这个文件。',
       permission: '需要重新授权文件访问。点击“恢复文件连接”后继续自动保存。',
       ready: '文件已连接，等待保存。', saving: '正在写入作答文件…',
       saved: '作答文件已保存。', error: '文件保存未完成，请重试；当前作答仍保留在页面中。'
@@ -213,8 +220,8 @@
     if (!candidate) {renderFilePanel(); return;}
     fileCandidate = candidate;
     const record = candidate.record;
-    const currentHasWork = Object.values(state.answers).some(hasWork);
-    const sameAnswers = !record || questions.every(q => JSON.stringify(state.answers[q.id] || emptyAnswer()) === JSON.stringify(record.answers[q.id] || emptyAnswer()));
+    const currentHasWork = state.favorites.length > 0 || Object.values(state.answers).some(hasWork);
+    const sameAnswers = !record || equalKeys(state.favorites, record.favorites) && questions.every(q => JSON.stringify(state.answers[q.id] || emptyAnswer()) === JSON.stringify(record.answers[q.id] || emptyAnswer()));
     if (!record || sameAnswers) await acceptFileCandidate(false);
     else if (!currentHasWork) await acceptFileCandidate(true);
     else {renderFilePanel(); if(mounted && !host.hidden) focus('file-conflict');}
@@ -242,12 +249,13 @@
 
   function mount() {
     if (mounted) return;
-    host.innerHTML = '<header class="quiz-header"><div><p class="quiz-eyebrow">第一章 / 逐节自测 · 由浅入深</p><h2 id="quiz-lesson-title" tabindex="-1"></h2><p class="quiz-intro">01—02 基础 · 03—04 理解 · 05—06 应用 · 07—08 分析 · 09—10 综合</p></div><div class="quiz-header-actions"><a class="quiz-btn" id="quiz-return">← 返回学习笔记</a><button class="quiz-btn" type="button" data-quiz-action="resume" id="quiz-resume">继续上次题</button></div></header>' +
+    host.innerHTML = '<header class="quiz-header"><div><p class="quiz-eyebrow">第一章 / 逐节自测 · 由浅入深</p><h2 id="quiz-lesson-title" tabindex="-1"></h2><p class="quiz-intro">原笔记练习与补充自测统一练习 · 经典问题可收藏后反复复习</p></div><div class="quiz-header-actions"><a class="quiz-btn" id="quiz-return">← 返回学习笔记</a><button class="quiz-btn" type="button" data-quiz-action="resume" id="quiz-resume">继续上次题</button></div></header>' +
       '<div class="quiz-stats"><div><b id="quiz-completion"></b><span>本节已完成</span></div><div><b id="quiz-objective"></b><span>选择题 · 自动评分</span></div><div><b id="quiz-subjective"></b><span>分析设计 · 要点自评</span></div><div><b id="quiz-total"></b><span>本节总分</span></div></div><p class="quiz-overall" id="quiz-overall"></p>' +
-      '<nav class="quiz-question-nav" id="quiz-question-nav" aria-label="本节题号导航"></nav><p class="quiz-legend"><span class="quiz-dot quiz-passed"></span>答对 / 已自评 <span class="quiz-dot quiz-failed"></span>需复习 <span class="quiz-dot quiz-learning"></span>已看答案，不计分 <span class="quiz-dot quiz-pending"></span>待作答</p>' +
+      '<div class="quiz-library-controls" role="group" aria-label="练习题范围"><button type="button" class="quiz-btn" id="quiz-view-all" data-quiz-action="view-all" aria-pressed="true">本节全部题目</button><button type="button" class="quiz-btn" id="quiz-view-favorites" data-quiz-action="view-favorites" aria-pressed="false">本章收藏 · 0</button></div><section id="quiz-favorites" class="quiz-favorites" aria-label="本章收藏的经典问题" hidden></section>' +
+      '<nav class="quiz-question-nav" id="quiz-question-nav" aria-label="本节题号导航"></nav><p class="quiz-legend"><span class="quiz-dot quiz-passed"></span>答对 / 已自评 <span class="quiz-dot quiz-failed"></span>需复习 <span class="quiz-dot quiz-learning"></span>已看答案，不计分 <span class="quiz-dot quiz-pending"></span>待作答 · ★ 已收藏</p>' +
       '<div class="quiz-progress" id="quiz-progress" role="progressbar" aria-label="本节完成进度" aria-valuemin="0"><span id="quiz-progress-fill"></span></div><article class="quiz-card" id="quiz-card"></article>' +
       '<nav class="quiz-bottom-nav" aria-label="题目翻页"><button class="quiz-btn" type="button" data-quiz-action="previous" id="quiz-previous">← 上一题</button><button class="quiz-btn quiz-primary" type="button" data-quiz-action="next" id="quiz-next">下一题 →</button><button class="quiz-btn" type="button" data-quiz-action="next-lesson" id="quiz-next-lesson">下一节自测 →</button></nav>' +
-      '<div class="quiz-tools" aria-label="作答记录与学习资料"><a class="quiz-btn" href="第一章测试题-题目版.txt" download>70 题 · 题目 TXT</a><a class="quiz-btn" href="第一章测试题-答案解析.txt" download>答案与评分 TXT</a><button class="quiz-btn" type="button" data-quiz-action="print-questions">打印本节题目</button><button class="quiz-btn" type="button" data-quiz-action="print-answers">打印本节答案</button><button class="quiz-btn" type="button" data-quiz-action="export">导出作答记录</button><button class="quiz-btn" type="button" data-quiz-action="import">导入作答记录</button><input id="quiz-import-file" type="file" accept=".json,application/json" hidden></div>' +
+      '<div class="quiz-tools" aria-label="作答记录与学习资料"><a class="quiz-btn" href="第一章测试题-题目版.txt" download>' + questions.length + ' 题 · 题目 TXT</a><a class="quiz-btn" href="第一章测试题-答案解析.txt" download>答案与评分 TXT</a><button class="quiz-btn" type="button" data-quiz-action="print-questions">打印本节题目</button><button class="quiz-btn" type="button" data-quiz-action="print-answers">打印本节答案</button><button class="quiz-btn" type="button" data-quiz-action="export">导出作答与收藏</button><button class="quiz-btn" type="button" data-quiz-action="import">导入作答与收藏</button><input id="quiz-import-file" type="file" accept=".json,application/json" hidden></div>' +
       '<section class="quiz-file-panel" aria-labelledby="quiz-file-title"><h3 id="quiz-file-title">作答文件 · 自动保存</h3><p id="quiz-file-status" role="status"></p><div class="quiz-file-actions"><button class="quiz-btn" type="button" data-quiz-action="file-new">新建作答文件</button><button class="quiz-btn" type="button" data-quiz-action="file-open">连接已有文件</button><button class="quiz-btn" id="quiz-file-reconnect" type="button" data-quiz-action="file-reconnect" hidden>恢复文件连接</button><button class="quiz-btn" id="quiz-file-save" type="button" data-quiz-action="file-save" hidden>立即保存 / 重试</button><button class="quiz-btn" id="quiz-file-disconnect" type="button" data-quiz-action="file-disconnect" hidden>断开文件</button></div><div class="quiz-file-conflict" id="quiz-file-conflict" tabindex="-1" hidden><p id="quiz-file-conflict-text"></p><button class="quiz-btn" id="quiz-file-use" type="button" data-quiz-action="file-use">使用文件记录</button><button class="quiz-btn" id="quiz-file-current" type="button" data-quiz-action="file-current">用当前记录覆盖文件</button><button class="quiz-btn" id="quiz-file-cancel" type="button" data-quiz-action="file-cancel">取消连接</button></div><p class="quiz-footnote">作答文件保存在本机，不上传 GitHub。首次需选定文件并授权；重新打开网页后，浏览器可能要求恢复授权。关闭网页前请确认“作答文件已保存”。</p></section>' +
       '<p class="quiz-saved" id="quiz-saved"></p><p class="quiz-transfer-status" id="quiz-transfer-status" role="status" tabindex="-1" hidden></p><p class="quiz-footnote">多选须全部选对且无错选才得 10 分。短答按评分要点自评，页面不自动判断文字答案。直接看答案不计分；重新作答后可参加测试。</p><p class="quiz-sr-only" id="quiz-announce" role="status" aria-live="polite" aria-atomic="true"></p>';
     mounted = true;
@@ -264,6 +272,36 @@
     if (q.type === 'short') return s === null ? '已提交 · 对照参考答案勾选要点，再确认自评。' : '已确认自评 · ' + s + ' / 10 分。';
     return s === 10 ? '回答正确 · 10 / 10 分。' : '需要复习 · 0 / 10 分。';
   }
+  const favoriteQuestions = () => questions.filter(q => state.favorites.includes(q.id));
+  function openQuestionById(id) {
+    const owner = lessons.find(l => l.questions.some(q => q.id === id));
+    if (!owner) return;
+    if (owner.number === activeNumber) {
+      const index = owner.questions.findIndex(q => q.id === id);
+      if (index === activeIndex) render('question-title'); else navigateQuestion(index);
+    } else {
+      persist('navigate');
+      dispatch('navigate', {chapterNumber: owner.number, questionId: id});
+    }
+  }
+  function renderCollection(q) {
+    const saved = favoriteQuestions();
+    el('view-favorites').textContent = '本章收藏 · ' + saved.length;
+    el('view-favorites').setAttribute('aria-pressed', String(collectionView));
+    el('view-all').setAttribute('aria-pressed', String(!collectionView));
+    el('favorites').hidden = !collectionView;
+    el('question-nav').hidden = collectionView;
+    el('favorites').innerHTML = '<h3>收藏的经典问题</h3><p class="quiz-hint">本章各节的收藏集中在这里。收藏不影响分数；清空作答也会保留收藏。</p>' + (saved.length ? saved.map(item => '<button type="button" class="quiz-favorite-entry' + (item.id === q.id ? ' quiz-favorite-current' : '') + '" data-quiz-favorite-open="' + esc(item.id) + '"' + (item.id === q.id ? ' aria-current="true"' : '') + '><span>★ ' + esc(item.id) + ' · ' + esc(item.sourceLabel || (item.sourceKind === 'original' ? '原笔记练习' : '补充自测')) + '</span><b>' + esc(item.title) + '</b></button>').join('') : '<p class="quiz-empty">还没有收藏。回到“本节全部题目”，点击题目上的“☆ 收藏经典问题”。</p>');
+    const activeSaved = state.favorites.includes(q.id);
+    el('card').hidden = collectionView && !activeSaved;
+    if (collectionView && saved.length && !activeSaved) el('favorites').insertAdjacentHTML('beforeend', '<p class="quiz-hint">请选择上面的一道收藏题开始复习。</p>');
+    const index = saved.findIndex(item => item.id === q.id);
+    el('previous').disabled = collectionView ? index <= 0 : activeIndex === 0;
+    el('next').disabled = collectionView ? index < 0 || index === saved.length - 1 : activeIndex === lesson().questions.length - 1;
+    el('next').textContent = collectionView ? '下一道收藏 →' : activeIndex === lesson().questions.length - 1 ? '本节最后一题' : '下一题 →';
+    el('previous').textContent = collectionView ? '← 上一道收藏' : '← 上一题';
+    el('next-lesson').hidden = collectionView || lessons.indexOf(lesson()) === lessons.length - 1;
+  }
   function render(focusId) {
     mount();
     const l = lesson(), q = question(), a = answer(q), stats = summary(l.number);
@@ -278,13 +316,14 @@
     el('objective').textContent = stats.objective + ' / ' + objectives;
     el('subjective').textContent = stats.subjective + ' / ' + (stats.maxScore - objectives);
     el('total').textContent = stats.total + ' / ' + stats.maxScore;
-    el('overall').textContent = '全章已完成 ' + stats.overallCompleted + ' / ' + stats.overallCount + ' 题' + (stats.overallCompleted === stats.overallCount ? ' · 已完成全部自测，可按错题与低分自评继续复习。' : ' · 按题号从浅到深练习，解析可跳回原文对应位置。');
+    el('overall').textContent = '全章已完成 ' + stats.overallCompleted + ' / ' + stats.overallCount + ' 题' + (stats.overallCompleted === stats.overallCount ? ' · 已完成全部自测，可按错题与低分自评继续复习。' : ' · 原有练习与补充自测统一作答，解析可跳回原文知识点。');
     el('question-nav').innerHTML = l.questions.map((item, index) => '<button type="button" class="quiz-qnum ' + stateClass(item) + (index === activeIndex ? ' quiz-current' : '') + '" data-quiz-question="' + index + '" aria-label="第 ' + item.order + ' 题：' + esc(item.title) + '，' + (score(item) === null ? state.answers[item.id]?.studyOnly ? '已看答案，不计分' : '尚未完成' : '已完成，' + score(item) + '分') + '"' + (index === activeIndex ? ' aria-current="step"' : '') + '>' + String(item.order).padStart(2, '0') + '</button>').join('');
     el('progress').setAttribute('aria-valuemax', String(stats.count));
     el('progress').setAttribute('aria-valuenow', String(stats.completed));
     el('progress').setAttribute('aria-valuetext', '完成 ' + stats.completed + ' / ' + stats.count + ' 题');
     el('progress-fill').style.width = (stats.completed / stats.count * 100) + '%';
-    let html = '<div class="quiz-tags"><span>' + LEVELS[q.level] + ' · ' + q.level + '/5</span><span>' + TYPES[q.type] + '</span><small>' + String(q.order).padStart(2, '0') + ' / ' + l.questions.length + ' · 10 分</small></div><h3 id="quiz-question-title" tabindex="-1">' + esc(q.title) + '</h3><p class="quiz-prompt">' + esc(q.prompt) + '</p>' + (q.code ? '<pre class="quiz-code"><code>' + esc(q.code) + '</code></pre>' : '');
+    let html = '<div class="quiz-tags"><span>' + LEVELS[q.level] + ' · ' + q.level + '/5</span><span>' + TYPES[q.type] + '</span><span>' + esc(q.sourceLabel || (q.sourceKind === 'original' ? '原笔记练习' : '补充自测')) + '</span><small>' + String(q.order).padStart(2, '0') + ' / ' + l.questions.length + ' · 10 分</small></div><div class="quiz-question-tools"><button type="button" id="quiz-favorite-toggle" class="quiz-btn quiz-favorite-toggle" data-quiz-action="favorite" aria-pressed="' + state.favorites.includes(q.id) + '">' + (state.favorites.includes(q.id) ? '★ 已收藏 · 取消收藏' : '☆ 收藏经典问题') + '</button></div><h3 id="quiz-question-title" tabindex="-1">' + esc(q.title) + '</h3>' + (q.prompt.trim() === q.title.trim() ? '' : '<p class="quiz-prompt">' + esc(q.prompt) + '</p>') + (q.code ? '<pre class="quiz-code"><code>' + esc(q.code) + '</code></pre>' : '');
+    if (q.alternatePrompts?.length) html += '<details class="quiz-related-prompts"><summary>原笔记同题问法 · '+q.alternatePrompts.length+' 条</summary>'+q.alternatePrompts.map(text=>'<p>'+esc(text)+'</p>').join('')+'</details>';
     if (q.type === 'short') {
       html += '<label class="quiz-answer-label" for="quiz-written">你的答案</label><textarea id="quiz-written" maxlength="30000" placeholder="写下判断、原因、处理步骤与验证方法……"' + (a.revealed ? ' disabled' : '') + '>' + esc(a.written) + '</textarea><p class="quiz-hint">提交后显示参考答案与评分要点；文字答案不自动判分。</p>';
     } else {
@@ -301,10 +340,12 @@
       html += '<div class="quiz-sources"><h4>回原文复习</h4>' + (targets.length ? targets.map(t => '<a href="#' + esc(t.id) + '">' + esc(t.title) + ' →</a>').join('') : '<p>' + (q.sourceRefs || []).map(esc).join('；') + '</p><a href="#chapter-' + l.number.split('.')[1] + '">回到 ' + esc(l.number) + ' 学习笔记 →</a>') + '</div></section>';
     }
     el('card').innerHTML = html;
-    el('previous').disabled = activeIndex === 0;
-    el('next').disabled = activeIndex === l.questions.length - 1;
-    el('next').textContent = activeIndex === l.questions.length - 1 ? '本节最后一题' : '下一题 →';
-    el('next-lesson').hidden = lessons.indexOf(l) === lessons.length - 1;
+    for (const item of l.questions) {
+      if (!state.favorites.includes(item.id)) continue;
+      const button = el('question-nav').querySelector('[data-quiz-question="' + (item.order - 1) + '"]');
+      if (button) {button.textContent += ' ★'; button.setAttribute('aria-label', button.getAttribute('aria-label') + '，已收藏');}
+    }
+    renderCollection(q);
     el('saved').textContent = statusText();
     el('saved').classList.toggle('quiz-warning', !storageAvailable);
     if (focusId) focus(focusId);
@@ -327,7 +368,7 @@
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json;charset=utf-8'}));
     const link = document.createElement('a'); link.id = 'quiz-download-progress'; link.href = url; link.download = '第一章-作答记录.json'; link.hidden = true;
     host.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
-    transferStatus('已导出作答记录。导入时会从原始选择与自评要点重新计算分数。');
+    transferStatus('已导出作答与收藏记录。导入时会从原始选择与自评要点重新计算分数。');
   }
   async function importFile(file) {
     if (!file) return;
@@ -337,7 +378,7 @@
       // Import is an explicit replacement. A bad file cannot partially change state.
       state = imported; clearTimeout(saveTimer); dirty = false;
       persist('import', false); render();
-      transferStatus('已导入作答记录，分数已重新计算。当前小节继续显示；点击“继续上次题”恢复导入的位置。');
+      transferStatus('已导入作答与收藏记录，分数已重新计算。当前小节继续显示；点击“继续上次题”恢复导入的位置。');
       focus('transfer-status'); announce('作答记录已导入。');
     } catch (error) {transferStatus('导入失败：' + error.message + ' 当前记录未改变。', true); focus('transfer-status');}
     finally {el('import-file').value = '';}
@@ -363,13 +404,26 @@
     }
   });
   host.addEventListener('click', event => {
-    const button = event.target.closest('button[data-quiz-action],button[data-quiz-question]');
+    const button = event.target.closest('button[data-quiz-action],button[data-quiz-question],button[data-quiz-favorite-open]');
     if (!button || !host.contains(button) || button.disabled || host.hidden || !activeNumber) return;
     if (button.dataset.quizQuestion !== undefined) {navigateQuestion(Number(button.dataset.quizQuestion)); return;}
+    if (button.dataset.quizFavoriteOpen) {openQuestionById(button.dataset.quizFavoriteOpen); return;}
     const action = button.dataset.quizAction, q = question(), a = answer(q);
+    if (action === 'view-all' || action === 'view-favorites') {collectionView = action === 'view-favorites'; render(); return;}
+    if (action === 'favorite') {
+      const wasSaved = state.favorites.includes(q.id);
+      state.favorites = wasSaved ? state.favorites.filter(id => id !== q.id) : [...state.favorites, q.id];
+      persist('favorite'); render();
+      if (collectionView && wasSaved) focus('view-favorites'); else focus('favorite-toggle');
+      announce(wasSaved ? '已取消收藏。作答和分数保持不变。' : '已收藏，可在“本章收藏”中复习。'); return;
+    }
     if (action?.startsWith('file-')) {void fileAction(action); return;}
-    if (action === 'previous') {navigateQuestion(activeIndex - 1); return;}
-    if (action === 'next') {navigateQuestion(activeIndex + 1); return;}
+    if (action === 'previous' || action === 'next') {
+      const delta = action === 'previous' ? -1 : 1;
+      if (collectionView) {const saved = favoriteQuestions(); const next = saved[saved.findIndex(item => item.id === q.id) + delta]; if (next) openQuestionById(next.id);}
+      else navigateQuestion(activeIndex + delta);
+      return;
+    }
     if (action === 'resume') {navigateQuestion(state.positions[activeNumber] || 0); return;}
     if (action === 'next-lesson') {
       const next = lessons[lessons.indexOf(lesson()) + 1];
@@ -399,6 +453,7 @@
       const l = byNumber.get(String(chapterNumber));
       if (!l) return null;
       const requested = typeof questionId === 'string' ? l.questions.findIndex(q => q.id === questionId) : -1;
+      if (requested >= 0 && collectionView && !state.favorites.includes(l.questions[requested].id)) collectionView = false;
       const index = requested >= 0 ? requested : state.positions[l.number] || 0;
       const changed = host.hidden || activeNumber !== l.number || activeIndex !== index || !mounted;
       if (dirty && activeNumber !== l.number) persist('draft');

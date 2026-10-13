@@ -21,7 +21,14 @@ NOTE_FILES = (
     'chapter-one-quiz.html',
     '第一章测试题-题目版.txt',
     '第一章测试题-答案解析.txt',
+    'chapter-two.html',
+    '第二章测试题-题目版.txt',
+    '第二章测试题-答案解析.txt',
+    'chapter-three.html',
+    '第三章测试题-题目版.txt',
+    '第三章测试题-答案解析.txt',
 )
+CHAPTER_PAGES = {'chapter-one.html', 'chapter-two.html', 'chapter-three.html'}
 MEDIA_SUFFIXES = {'.mp4', '.vtt', '.srt', '.jpg', '.png'}
 PRIVATE_PATTERNS = (b'internal-api-drive-stream', b'authcode/?code=')
 ANCHOR = re.compile(r'<a\b[^>]*>.*?</a\s*>', re.IGNORECASE | re.DOTALL)
@@ -72,7 +79,7 @@ def public_notes(text: str) -> str:
         return match.group(0)
 
     text = ANCHOR.sub(remove_resume, text)
-    text = text.replace('个人履历与学习笔记', '第一章学习中心')
+    text = text.replace('个人履历与学习笔记', 'AI 工程学习中心')
 
     def replace_image_notice(match: re.Match[str]) -> str:
         if is_private_image_url(match.group(0)) or any(href.group(3) == '#chapter-3' for href in HREF.finditer(match.group(0))):
@@ -105,7 +112,8 @@ class PageParser(HTMLParser):
         self.refs: list[str] = []
         self.ids: set[str] = set()
         self.video_data: list[str] = []
-        self.capture_data = False
+        self.page_data: list[str] = []
+        self.capture_data: str | None = None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
@@ -114,16 +122,38 @@ class PageParser(HTMLParser):
         for attr in ('href', 'src', 'poster'):
             if attributes.get(attr):
                 self.refs.append(attributes[attr])
-        if tag == 'script' and attributes.get('id') == 'data' and attributes.get('type') == 'application/json':
-            self.capture_data = True
+        if tag == 'script' and attributes.get('type') == 'application/json':
+            self.capture_data = attributes.get('id')
 
     def handle_endtag(self, tag: str) -> None:
         if tag == 'script':
-            self.capture_data = False
+            self.capture_data = None
 
     def handle_data(self, data: str) -> None:
-        if self.capture_data:
+        if self.capture_data == 'data':
             self.video_data.append(data)
+        elif self.capture_data == 'page-data':
+            self.page_data.append(data)
+
+    def quiz_routes(self) -> set[str]:
+        """Only allow routes for questions actually included in this chapter."""
+        if not self.page_data:
+            return set()
+        data = json.loads(''.join(self.page_data))
+        routes: set[str] = set()
+        for lesson_index, lesson in enumerate(data['quizBank']['lessons'], 1):
+            routes.add(f'quiz-{lesson_index}')
+            for question in lesson['questions']:
+                question_id = question['id']
+                prefix, number = question_id.rsplit('-', 1)
+                if prefix != lesson['number'] or not re.fullmatch(r'0[1-9]|[1-9]\d+', number):
+                    raise ValueError(f'Invalid question ID: {question_id}')
+                routes.add(f'quiz-{lesson_index}-{number}')
+        for original, destination in data.get('exerciseRedirects', {}).items():
+            if destination not in routes:
+                raise ValueError(f'Exercise redirect target is missing: {destination}')
+            routes.add(original)
+        return routes
 
 
 def page_text(source: bytes | Path) -> str:
@@ -132,11 +162,14 @@ def page_text(source: bytes | Path) -> str:
 
 def validate_urls(plan: dict[PurePosixPath, bytes | Path]) -> int:
     pages: dict[PurePosixPath, PageParser] = {}
+    quiz_routes: dict[PurePosixPath, set[str]] = {}
     for relative, source in plan.items():
         if relative.suffix == '.html':
             parser = PageParser()
             parser.feed(page_text(source))
             pages[relative] = parser
+            if relative.name in CHAPTER_PAGES:
+                quiz_routes[relative] = parser.quiz_routes()
     checked = 0
     for relative, parser in pages.items():
         for ref in parser.refs:
@@ -150,8 +183,7 @@ def validate_urls(plan: dict[PurePosixPath, bytes | Path]) -> int:
                 raise ValueError(f'Broken or unpublished local link: {relative}: {ref}')
             if parts.fragment and target in pages:
                 fragment = unquote(parts.fragment)
-                quiz_route = target.name == 'chapter-one.html' and re.fullmatch(r'quiz-[1-7](?:-(?:0[1-9]|10))?', fragment)
-                if fragment not in pages[target].ids and not quiz_route:
+                if fragment not in pages[target].ids and fragment not in quiz_routes.get(target, set()):
                     raise ValueError(f'Unknown page fragment: {relative}: {ref}')
             checked += 1
     player = pages[VIDEO_DIR / 'index.html']
@@ -213,14 +245,8 @@ def build(root: Path = ROOT) -> dict[str, int]:
     for name in NOTE_FILES:
         relative = NOTES_DIR / name
         source = read_source(root, relative)
-        plan[relative] = public_notes(source.read_text(encoding='utf-8-sig')).encode('utf-8') if name == 'chapter-one.html' else source
-    plan[NOTES_DIR / 'index.html'] = (
-        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<meta http-equiv="refresh" content="0;url=../index.html">'
-        '<title>第一章学习中心</title></head><body>'
-        '<p><a href="../index.html">前往第一章学习中心 →</a></p></body></html>'
-    ).encode('utf-8')
+        plan[relative] = public_notes(source.read_text(encoding='utf-8-sig')).encode('utf-8') if name in CHAPTER_PAGES else source
+    plan[NOTES_DIR / 'index.html'] = read_source(root, NOTES_DIR / 'index.html')
     video_source = root.joinpath(*VIDEO_DIR.parts)
     reject_links(video_source, root)
     if not video_source.is_dir():
@@ -245,7 +271,7 @@ def build(root: Path = ROOT) -> dict[str, int]:
         else:
             shutil.copy2(source, destination)
         assert_no_private_urls(destination)
-    report = {'publicFiles': len(plan), 'videos': video_count, 'localLinksChecked': checked}
+    report = {'publicFiles': len(plan), 'chapters': len(CHAPTER_PAGES), 'videos': video_count, 'localLinksChecked': checked}
     print(json.dumps(report, ensure_ascii=False))
     return report
 

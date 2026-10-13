@@ -92,6 +92,20 @@
 #lesson-quiz .quiz-file-conflict { margin-top:15px; padding:13px; border:1px solid #c89b57; border-radius:8px; background:#fff8e9; }
 #lesson-quiz .quiz-file-conflict .quiz-btn { margin:0 7px 7px 0; }
 #lesson-quiz #quiz-file-status.quiz-warning { color:#a54436; }
+#lesson-quiz .quiz-library-controls { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 15px; }
+#lesson-quiz .quiz-library-controls [aria-pressed="true"] { background:var(--quiz-green); border-color:var(--quiz-green); color:white; }
+#lesson-quiz .quiz-favorites { padding:18px; border:1px solid var(--quiz-line); border-radius:12px; margin-bottom:18px; background:#f7f9f2; }
+#lesson-quiz .quiz-favorites h3 { font-size:17px; margin:0 0 5px; }
+#lesson-quiz .quiz-favorite-entry { display:block; width:100%; text-align:left; margin-top:9px; padding:12px 14px; background:white; border:1px solid var(--quiz-line); border-radius:8px; overflow-wrap:anywhere; }
+#lesson-quiz .quiz-favorite-entry span { display:block; font-size:11px; color:#866a2d; }
+#lesson-quiz .quiz-favorite-entry b { display:block; font-size:13px; line-height:1.75; font-weight:500; }
+#lesson-quiz .quiz-favorite-entry.quiz-favorite-current { border-color:var(--quiz-green); box-shadow:inset 3px 0 var(--quiz-green); }
+#lesson-quiz .quiz-question-tools { display:flex; justify-content:flex-end; margin:0 0 12px; }
+#lesson-quiz .quiz-favorite-toggle[aria-pressed="true"] { color:#805b19; background:#fff7df; border-color:#d4bb79; }
+#lesson-quiz .quiz-empty { font-size:13px; margin:14px 0 0; color:var(--quiz-muted); }
+#lesson-quiz .quiz-related-prompts { font-size:13px; margin:12px 0 18px; padding:12px 15px; border:1px dashed var(--quiz-line); border-radius:8px; }
+#lesson-quiz .quiz-related-prompts summary { cursor:pointer; color:var(--quiz-green); }
+#lesson-quiz .quiz-related-prompts p { white-space:pre-wrap; overflow-wrap:anywhere; }
 @media(max-width:760px) {
   #lesson-quiz #quiz-result, #lesson-quiz #quiz-question-title { scroll-margin-top:230px; }
   #lesson-quiz .quiz-header { flex-direction:column; gap:12px; }

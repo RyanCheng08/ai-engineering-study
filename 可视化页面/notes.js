@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const { searchIndex, stageDetails, quizBank } = JSON.parse(document.getElementById('page-data').textContent);
+  const { searchIndex, stageDetails, quizBank, exerciseRedirects = {} } = JSON.parse(document.getElementById('page-data').textContent);
   const chapters = Array.from(document.querySelectorAll('article.chapter'));
   const navLinks = Array.from(document.querySelectorAll('.chapter-link'));
   const sidebar = document.getElementById('sidebar');
@@ -38,10 +38,10 @@
     chapters.forEach((chapter,i)=>{
       const stats=window.ChapterQuiz?.summary('1.'+(i+1));
       const label=document.querySelector('[data-chapter-progress="'+(i+1)+'"]');
-      if(label)label.textContent='自测 '+(stats?.completed||0)+' / 10';
+      if(label)label.textContent='自测 '+(stats?.completed||0)+' / '+(stats?.count||0);
     });
     const stats=window.ChapterQuiz?.summary(number());
-    document.getElementById('mode-quiz-progress').textContent=(stats?.completed||0)+' / 10';
+    document.getElementById('mode-quiz-progress').textContent=(stats?.completed||0)+' / '+(stats?.count||0);
     if(mode==='quiz')updateReading();
   }
   function updateMode(){
@@ -49,8 +49,9 @@
     document.getElementById('workspace-title').textContent=number()+' '+current.dataset.label;
     modeNotes.href='#'+current.id;modeQuiz.href='#quiz-'+current.id.split('-')[1];
     document.getElementById('document-quiz-link').href=modeQuiz.href;
+    document.getElementById('document-quiz-link').textContent='本页自测 · 本节 '+(window.ChapterQuiz?.summary(number())?.count||0)+' 题 →';
     [modeNotes,modeQuiz].forEach(link=>{const active=link===(mode==='notes'?modeNotes:modeQuiz);link.setAttribute('aria-selected',String(active));link.tabIndex=active?0:-1});
-    document.getElementById('workspace-hint').textContent=mode==='notes'?'读完本节后，可在这里切到 10 道由浅入深的自测题。':'先独立作答，再看解析；点击知识点即可回看笔记。';
+    document.getElementById('workspace-hint').textContent=mode==='notes'?'读完本节后，可切到 '+(window.ChapterQuiz?.summary(number())?.count||0)+' 道练习题，也可收藏经典问题。':'先独立作答，再看解析；原笔记练习与补充自测均在这里。';
     document.getElementById('print-current').textContent=mode==='quiz'?'打印本节题目':'打印本节';
     document.getElementById('print-all').textContent=mode==='quiz'?'打印全章题目':'打印全章';
     refreshProgress();
@@ -62,7 +63,11 @@
   function showHash(initial=false) {
     let id;
     try { id=decodeURIComponent(location.hash.slice(1)); } catch { id=''; }
-    const quizRoute=id.match(/^quiz-([1-7])(?:-(0[1-9]|10))?$/);
+    if (Object.prototype.hasOwnProperty.call(exerciseRedirects, id)) {
+      id = exerciseRedirects[id];
+      try {history.replaceState(null, '', '#' + id);} catch {}
+    }
+    const quizRoute=id.match(/^quiz-([1-7])(?:-(0[1-9]|[1-9]\d+))?$/);
     const target=quizRoute?null:document.getElementById(id);
     const chapter=quizRoute?chapters[Number(quizRoute[1])-1]:target?.closest('article.chapter') || chapters.find(c=>c.id===id) || (target ? current : chapters[0]);
     const previous=current,previousMode=mode;
@@ -90,7 +95,7 @@
   window.addEventListener('hashchange',()=>showHash());
   function updateReading() {
     scrollQueued=false;
-    if(mode==='quiz'){document.getElementById('reading-progress').style.width=(window.ChapterQuiz?.summary(number())?.completed||0)*10+'%';return}
+    if(mode==='quiz'){const stats=window.ChapterQuiz?.summary(number());document.getElementById('reading-progress').style.width=((stats?.completed||0)/Math.max(1,stats?.count||0)*100)+'%';return}
     const rect=current.getBoundingClientRect();
     const readingEdge=document.getElementById('lesson-workspace').getBoundingClientRect().bottom+15;
     const range=Math.max(1,current.offsetHeight-window.innerHeight+readingEdge);
@@ -104,11 +109,11 @@
   document.addEventListener('chapterquiz:progress',refreshProgress);
   document.addEventListener('chapterquiz:navigate',event=>{
     const match=event.detail?.chapterNumber?.match(/^1\.([1-7])$/);if(!match)return;
-    const q=event.detail.questionId?.match(/^1\.[1-7]-(0[1-9]|10)$/)?.[1];location.hash='quiz-'+match[1]+(q?'-'+q:'');
+    const q=event.detail.questionId?.match(/^1\.[1-7]-(0[1-9]|[1-9]\d+)$/)?.[1];location.hash='quiz-'+match[1]+(q?'-'+q:'');
   });
   document.addEventListener('chapterquiz:position',event=>{
     if(mode!=='quiz'||event.detail?.chapterNumber!==number())return;
-    const order=event.detail.questionId?.match(/^1\.[1-7]-(0[1-9]|10)$/)?.[1];if(!order)return;
+    const order=event.detail.questionId?.match(/^1\.[1-7]-(0[1-9]|[1-9]\d+)$/)?.[1];if(!order)return;
     try{history.replaceState(null,'','#quiz-'+current.id.split('-')[1]+'-'+order)}catch{}
   });
   window.addEventListener('scroll',()=>{if(!scrollQueued){scrollQueued=true;requestAnimationFrame(updateReading)}},{passive:true});
@@ -171,11 +176,12 @@
   function prepareQuizPrint(all=false,answers=false){
     if(quizPrintActive)return;
     const lessons=all?quizBank.lessons:quizBank.lessons.filter(l=>l.number===number());
-    let html='<h1>第一章 · '+(all?'全章':'本节')+'自测'+(answers?'答案解析':'题目')+'</h1><p>姓名：____________　日期：____________<br>选择题自动评分；分析与设计题按要点自评。每节 100 分。</p>';
+    let html='<h1>第一章 · '+(all?'全章':'本节')+'自测'+(answers?'答案解析':'题目')+'</h1><p>姓名：____________　日期：____________<br>选择题自动评分；分析与设计题按要点自评。每题 10 分。</p>';
     for(const lesson of lessons){
-      html+='<h2>'+esc(lesson.number+' '+lesson.title)+'</h2>';
+      html+='<h2>'+esc(lesson.number+' '+lesson.title)+'</h2><p>共 '+lesson.questions.length+' 题 · '+(lesson.questions.length*10)+' 分</p>';
       for(const q of lesson.questions){
-        html+='<section class="quiz-paper-question"><h3>'+esc(q.id+' '+q.title)+' · 10 分</h3><p>'+esc(q.prompt)+'</p>'+(q.code?'<pre><code>'+esc(q.code)+'</code></pre>':'');
+        html+='<section class="quiz-paper-question"><h3>'+esc(q.id+' '+q.title)+' · 10 分</h3><p>'+esc(q.sourceLabel||(q.sourceKind==='original'?'原笔记练习':'补充自测'))+'</p><p>'+esc(q.prompt)+'</p>'+(q.code?'<pre><code>'+esc(q.code)+'</code></pre>':'');
+        if(q.alternatePrompts?.length)html+='<p>原笔记同题问法：</p>'+q.alternatePrompts.map(text=>'<p>'+esc(text)+'</p>').join('');
         if(q.options)html+=q.options.map(o=>'<p>'+esc(o.key+'. '+o.text)+'</p>').join('');
         if(answers)html+='<div class="quiz-paper-answer"><p><b>参考答案'+(q.answer?'：'+esc(q.answer.join('、')):'')+'</b></p><p>'+esc(q.referenceAnswer)+'</p><p><b>解析</b></p><p>'+esc(q.explanation)+'</p>'+(q.rubric?q.rubric.map(r=>'<p>'+esc(r.score+' 分：'+r.point)+'</p>').join(''):'')+'</div>';
         else html+='<div class="quiz-paper-space">作答：____________________________</div>';

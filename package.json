@@ -2,11 +2,21 @@
   "name": "ai-engineering-study",
   "version": "1.0.0",
   "private": true,
-  "description": "第一章学习中心：七节笔记、同页自测、术语与讲解视频",
+  "description": "AI 工程学习中心：第一至第三章笔记、自测、经典问题收藏及第一章讲解视频",
   "type": "module",
   "scripts": {
-    "test": "node tests/file-store.test.cjs",
-    "build": "python 可视化页面/测试题/build_quiz.py && node 可视化页面/build-notes.mjs && python scripts/build-site.py"
+    "test:file-store": "node tests/file-store.test.cjs",
+    "test:quiz-state": "node --test 可视化页面/tests/quiz-state.test.mjs",
+    "test:public-build": "python -m unittest discover -s scripts -p test_build_site.py",
+    "test": "npm run test:file-store && npm run test:quiz-state && npm run test:public-build",
+    "build:chapter-one": "python 可视化页面/测试题/build_quiz.py && node 可视化页面/build-notes.mjs",
+    "build:chapter-two": "node 可视化页面/第二章资源/prepare-exercises.mjs && node 可视化页面/build-chapter-two.mjs",
+    "build:chapter-three": "node 可视化页面/build-chapter-three.mjs",
+    "verify:chapter-two": "node 可视化页面/第二章资源/verify-chapter-two.mjs",
+    "verify:chapter-three": "node 可视化页面/第三章资源/verify-chapter-three.mjs",
+    "verify": "npm run verify:chapter-two && npm run verify:chapter-three",
+    "build:site": "python scripts/build-site.py",
+    "build": "npm run build:chapter-one && npm run build:chapter-two && npm run build:chapter-three && npm run verify && npm run build:site"
   },
   "engines": {
     "node": ">=20"

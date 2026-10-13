@@ -33,14 +33,18 @@ jobs:
         uses: actions/configure-pages@v5
       - name: Install locked Markdown dependency
         run: npm ci
-      - name: Verify local file persistence
+      - name: Verify file persistence, favorites and public output boundaries
         run: npm test
-      - name: Validate and generate quizzes
-        run: python3 可视化页面/测试题/build_quiz.py
-      - name: Generate integrated learning notes
-        run: node 可视化页面/build-notes.mjs
+      - name: Build chapter one notes and quizzes
+        run: npm run build:chapter-one
+      - name: Build chapter two notes and merged exercises
+        run: npm run build:chapter-two
+      - name: Build chapter three notes and merged exercises
+        run: npm run build:chapter-three
+      - name: Verify chapter two and three content and links
+        run: npm run verify
       - name: Assemble and validate public files
-        run: python3 scripts/build-site.py
+        run: npm run build:site
       - name: Upload public site
         uses: actions/upload-pages-artifact@v4
         with:

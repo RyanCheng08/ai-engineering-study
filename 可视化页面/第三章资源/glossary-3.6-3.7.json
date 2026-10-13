@@ -1,0 +1,209 @@
+[
+  {
+    "id":"langchain", "term":"LangChain（统一模型与工具接口的组件）", "aliases":["LangChain"], "chapters":["3.6"],
+    "plain":"把不同模型、消息和工具整理成比较一致的使用方式。本课只用其中少量消息类型与工具组件，复杂步骤的调度交给 LangGraph。",
+    "analogy":{"title":"不同电器接同一种插座","description":"厨房里不同品牌的电器有统一接口，接起来方便；接口并不决定先煮饭还是先炒菜。LangChain 的接口封装类似适配层，实际烹饪次序对应另外的流程编排。比喻只说明接口统一，不意味着所有模型行为完全相同。"},
+    "steps":[{"title":"统一表示","description":"使用共同的消息类型描述模型输出与工具结果。"},{"title":"声明工具","description":"通过工具接口让能力有清晰名称和参数。"},{"title":"交给流程调度","description":"需要分支、人工暂停和恢复时，由 LangGraph 安排业务步骤。"}],
+    "example":{"title":"消息组件不等于完整流程","input":"四个检查工具与一条包含 tool_calls 的 AIMessage。","output":"LangGraph 中的 ToolNode 处理这条消息，发布图继续安排审批与灰度。","explanation":"消息和工具接口帮助互通；决定何时审批、如何恢复是图的职责，不要求安装全部生态组件。"},
+    "pitfalls":["使用 LangGraph 不等于必须安装 LangChain 全家桶。","统一接口不自动保证权限、业务正确性或恢复能力。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 一、先看要编排的业务流程"}]
+  },
+  {
+    "id":"langgraph", "term":"LangGraph（把多步流程写成状态图）", "aliases":["LangGraph"], "chapters":["3.6","3.7"],
+    "plain":"把办事步骤、共享资料以及下一步往哪里走明确写出来，特别适合有分支、并行、人工暂停和跨进程恢复的流程。",
+    "analogy":{"title":"一张能执行的办事路线图","description":"办证先提交材料，再按情况走普通审核或加审，缺材料就返回补齐。LangGraph 像落实这张路线图的调度程序。图只表达规则，不保证每位工作人员的业务判断或权限检查已经正确。"},
+    "steps":[{"title":"定义共享资料","description":"用 State 保存工单、检查结果、审批记录与进度。"},{"title":"安排步骤和线路","description":"用节点执行步骤，用边和条件路由决定下一站。"},{"title":"执行并保存进度","description":"接入合适的存储与任务编号，让暂停流程能够继续。"}],
+    "example":{"title":"高风险发布多过一道关","input":"补丁涉及 auth，风险分级为 H。","output":"流程进入技术负责人审批，再进入安全负责人审批；拒绝则收尾。","explanation":"分支路径由明确规则表达。是否真的禁止提前部署，还要通过节点实现和执行测试证明。"},
+    "pitfalls":["简单直线流程用普通函数可能更清楚，不是所有 Agent 都需要图。","图能恢复审批流程，不代表整个代码任务的现场与证据都已保存。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 九、什么时候用 LangGraph"},{"title":"第三章学习笔记","section":"3.7 七、组合完整项目"}]
+  },
+  {
+    "id":"langsmith", "term":"LangSmith（查看模型调用过程的观测平台）", "aliases":["LangSmith"], "chapters":["3.6"],
+    "plain":"把调用时输入了什么、输出了什么、花了多久等记录展示出来，帮助找问题和看成本；它不负责替任务继续执行。",
+    "analogy":{"title":"厨房里的录像和出餐记录","description":"录像能回看哪一步等得久，出餐记录能查哪单做错了；摄像机不会自动接着做未完成的菜。观测平台类似这些记录，恢复执行还需要任务状态和执行系统。"},
+    "steps":[{"title":"记录调用","description":"在流程运行时记录输入、输出、耗时与关联信息。"},{"title":"定位异常","description":"沿记录查找失败或耗时出现的位置。"},{"title":"回到执行系统修正","description":"根据证据修改流程或参数，任务恢复由运行层处理。"}],
+    "example":{"title":"看见审批前发生了什么","input":"一条运行记录显示分级完成后停在待审批。","output":"开发者可查看之前的调用，但仍需有效审批与保存的任务状态才能继续。","explanation":"能看懂过程和能继续过程，是两个不同能力。"},
+    "pitfalls":["装观测 SDK 不会自动获得跨进程恢复能力。","有一条成功调用记录，不代表整个任务交付通过。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 一、先看要编排的业务流程"},{"title":"第三章学习笔记","section":"3.6 九、什么时候用 LangGraph"}]
+  },
+  {
+    "id":"stategraph", "term":"StateGraph（搭建状态图的构建器）", "aliases":["StateGraph"], "chapters":["3.6"],
+    "plain":"用来登记流程里有哪些步骤、共享哪些字段、各步骤怎样连接的搭建工具；搭好后调用 compile，才得到可以运行的图。",
+    "analogy":{"title":"先排好活动流程表，再开始活动","description":"策划者先列签到、检查、批准和发布，再连好前后关系。StateGraph 像这张正在编辑的流程表，compile 像将表交成可执行方案。方案格式能通过检查，不代表所有业务规则已经正确。"},
+    "steps":[{"title":"声明状态结构","description":"把预期字段交给 StateGraph，例如工单号与阶段记录。"},{"title":"增加节点和边","description":"登记业务函数，并连接开始、分支、汇合与结束。"},{"title":"编译后调用","description":"compile 生成可运行图，可同时配置状态保存组件。"}],
+    "example":{"title":"从草图到可运行对象","input":"builder = StateGraph(ReleaseState)，再添加 intake 与后续线路。","output":"graph = builder.compile(checkpointer=saver)。","explanation":"builder 用来搭建，graph 用来调用；编译完成仍需验证拒绝、预算和真实部署等业务行为。"},
+    "pitfalls":["不要把构建器直接当已经运行过的流程。","结构检查不等于业务规则验收。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 二、P1：主线最小版"}]
+  },
+  {
+    "id":"graph-node", "term":"Node（图中的一个业务步骤）", "aliases":["Node","图节点"], "chapters":["3.6"],
+    "plain":"流程中负责做一件明确事情的步骤，通常是接收当前 State 的函数。它可以纯计算、调用模型或执行多个工具，并返回自己更新的字段。",
+    "analogy":{"title":"办事大厅的一站窗口","description":"一个窗口负责核对材料，另一个负责审核风险，每站把新增结果记进总档案。节点像其中一站，而不是规定每站都必须打一次电话。窗口比喻不包含并行冲突，程序还要定义字段合并规则。"},
+    "steps":[{"title":"读取当前资料","description":"函数收到整个 State，读取本步骤需要的字段。"},{"title":"完成明确职责","description":"例如整理检查结果，或计算风险等级。"},{"title":"返回新增或修改项","description":"由框架将增量按相应规则合入 State。"}],
+    "example":{"title":"分级节点只更新分级","input":"State 中 patch_diff 涉及 payment。","output":"节点返回 {'change_level':'H'}。","explanation":"无需把全部工单内容重新返回；后续路由读取这个新等级选择审批路径。"},
+    "pitfalls":["节点不等于一次模型调用，也可能完全不调用模型。","节点恢复可能重跑，不能任意把真实写入放在中断之前。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 一、先看要编排的业务流程"},{"title":"第三章学习笔记","section":"3.6 二、P1：主线最小版"}]
+  },
+  {
+    "id":"conditional-edge", "term":"条件边（根据当前资料选择下一站）", "aliases":["条件边","条件路由","add_conditional_edges"], "chapters":["3.6"],
+    "plain":"某一步完成后，读取 State 中已经确定的信息，决定下一步走哪条路，例如低风险自动继续、高风险进入两级审批。",
+    "analogy":{"title":"按挂号信息分诊","description":"护士根据已登记的症状把你指向不同诊室。条件路由像分诊指路；如果要补测体温，应在负责测量的步骤登记后再选路，不能边指路边偷偷改病历。比喻不等于模型可以自行决定权限。"},
+    "steps":[{"title":"确定分叉点","description":"source 指定哪个节点完成后开始选择。"},{"title":"读取状态选路","description":"path_fn 只读 State，返回 L、M、H 等路名。"},{"title":"映射到实际节点","description":"path_map 将路名对应到真正的审批节点。"}],
+    "example":{"title":"按风险分流","input":"change_level='H'。","output":"route_by_level 返回 H，映射进入 approval_dual_H。","explanation":"分级计算在前置节点，路由只是使用结果。明确返回类型也帮助显示分支标签。"},
+    "pitfalls":["需要修改 State 时应另设节点，路由函数保持只读。","多分支汇合与 ToolNode 内部工具并发不是同一种机制。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 三、P2：条件路由"}]
+  },
+  {
+    "id":"toolnode", "term":"ToolNode（按消息执行工具的现成节点）", "aliases":["ToolNode"], "chapters":["3.6"],
+    "plain":"读取消息末尾的工具申请，执行对应工具并生成工具结果。本课用它把构建、单测、安全扫描和依赖审计四项独立检查并行完成。",
+    "analogy":{"title":"把同一张检查单分发到四个窗口","description":"导诊台拿到四项互不依赖的检查申请，分别送去办理，再收回各自报告。ToolNode 类似分发与回收的执行节点。并行只适用于可独立执行的动作，也不会自动替代工具的权限与边界检查。"},
+    "steps":[{"title":"准备申请消息","description":"末尾 AIMessage 携带四个带独立调用编号的 tool_calls。"},{"title":"执行已注册工具","description":"ToolNode 根据工具名和参数调用对应能力。"},{"title":"回收结果","description":"结果成为 ToolMessage，后续节点整理成业务检查事实。"}],
+    "example":{"title":"四项发布前检查","input":"build、unit、scan、audit 四个独立工具请求。","output":"四份工具结果进入 messages，collect_checks 更新 checks_passed。","explanation":"图上仍可只有一个 tool_checks 节点，其内部并行不等于画了四条图分支。"},
+    "pitfalls":["本课 ToolNode 使用 messages 末尾的 AIMessage，不是随意扫描整张图找动作。","messages 必须配置合适的合并规则，不能把原申请覆盖掉。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 四、P3：ToolNode 并行"}]
+  },
+  {
+    "id":"reducer", "term":"Reducer（同一字段的合并规则）", "aliases":["Reducer","状态归并器"], "chapters":["3.6"],
+    "plain":"多个步骤给同一个字段写新内容时，明确应该怎样与旧内容合在一起，例如审批记录逐条累加，而不是后来的一条抹掉前面的记录。",
+    "analogy":{"title":"多人填同一本登记册","description":"技术负责人和安全负责人分别交一张签字单，档案员需要知道是追加两页，还是替换某页。Reducer 就是这条收录规则。不是所有字段都该累加：当前状态、消息和数字可能需要不同规则。"},
+    "steps":[{"title":"确定字段含义","description":"判断它是当前值、累计列表，还是按编号合并的消息。"},{"title":"声明合并办法","description":"例如 approvals 用累加，messages 用 add_messages。"},{"title":"节点只交增量","description":"每个审批节点仅返回本次记录，避免重复累加旧列表。"}],
+    "example":{"title":"保留两段审批","input":"已有技术负责人记录，安全节点返回一条安全审批记录。","output":"approvals 同时保留两条记录。","explanation":"如果只是普通覆盖，前一段审批会消失；如果返回整个旧列表再累加，又会出现重复。"},
+    "pitfalls":["没有合适规则时，后写可能覆盖前值，并行更新也可能冲突。","加了 reducer 不等于任何并行写入都业务正确，仍需检查字段语义。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 四、P3：ToolNode 并行"},{"title":"第三章学习笔记","section":"3.6 五、P4：中断与恢复"}]
+  },
+  {
+    "id":"add-messages", "term":"add_messages（按消息 ID 合并消息）", "aliases":["add_messages"], "chapters":["3.6"],
+    "plain":"专门用于 messages 字段的合并规则，按照消息 ID 追加与去重，让节点提交一条新消息时，之前的请求和结果仍然保留。",
+    "analogy":{"title":"按编号装订收发信件","description":"收到一封新信，先看信件编号，再放入档案，不能每次把整本旧信扔掉。add_messages 类似按编号整理消息。消息 ID 与工具调用 ID 不是同一个概念，后者用于对应某次工具申请和结果。"},
+    "steps":[{"title":"声明消息规则","description":"messages 字段用 Annotated 指定 add_messages。"},{"title":"返回本次消息","description":"节点只交 [fanout] 或本次结果，不重建全部历史。"},{"title":"检查关联完整","description":"新工具调用使用新调用编号，保留原申请与对应结果。"}],
+    "example":{"title":"检查结果进入历史","input":"messages 已有包含四项检查申请的 AIMessage。","output":"工具结果合入后，历史中保留申请与对应的 ToolMessage。","explanation":"这支持后续整理检查结果和审计；普通覆盖会让原请求消失。"},
+    "pitfalls":["所有消息共用一个 ID 不能代表它们属于同一任务。","按消息 ID 合并不自动解决业务动作重复执行问题。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 四、P3：ToolNode 并行"}]
+  },
+  {
+    "id":"interrupt", "term":"interrupt（节点发出暂停并等待外部输入）", "aliases":["interrupt()","interrupt","节点中断"], "chapters":["3.6","3.7"],
+    "plain":"让图在需要人工决定时结束本次节点执行，并把待批内容交出去。恢复时这个节点从头重跑，执行到 interrupt 才拿到人工传入的决定。",
+    "analogy":{"title":"补齐材料后重新办理这一站","description":"窗口要求你带签字回来，本次办理先结束；下次要重新读材料、走到核对签字的环节。interrupt 类似这种重新进入，不是把工作人员冻结在原动作。正因如此，前面不能安排扣款、部署等真实副作用。"},
+    "steps":[{"title":"准备展示资料","description":"使用 State 中的工单与补丁构造可序列化载荷。"},{"title":"发出暂停信号","description":"首次调用 interrupt 后，本次节点的后续 return 不执行。"},{"title":"重跑并接收决定","description":"恢复到该调用时取得 resume 值，再决定后续分支。"}],
+    "example":{"title":"等负责人批准补丁","input":"审批节点展示 ticket_id、diff_preview 与 approve/reject。","output":"首次暂停；收到有效决定后重跑节点，并记录这次决定。","explanation":"补丁生成可提前保存，但实际写入应放在批准后的独立受控节点。"},
+    "pitfalls":["恢复保存的是状态，不是 Python 调用栈。","中断前发送请求、写文件或部署，可能在恢复时再次发生。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 五、P4：中断与恢复"},{"title":"第三章学习笔记","section":"3.6 八、三个实际工程坑"}]
+  },
+  {
+    "id":"checkpointer", "term":"Checkpointer（负责保存和读取图进度的组件）", "aliases":["Checkpointer","检查点存储器","SqliteSaver","InMemorySaver"], "chapters":["3.6"],
+    "plain":"图运行时负责把状态和执行进度存下来，并在后续调用时取回。本课用内存保存器起步，需要跨进程恢复时使用 SQLite 等持久保存方式。",
+    "analogy":{"title":"负责归档和调档的档案员","description":"办事到一半，档案员保存材料和待办位置；下次按编号调出。Checkpointer 像档案员，存档是被保管的材料。只写在临时白板上与存进档案柜不同，内存保存不能被当作永久保存。"},
+    "steps":[{"title":"选择存储方式","description":"按是否需要进程退出后继续选择内存或持久存储。"},{"title":"编译时接入","description":"通过 compile(checkpointer=...) 交给图。"},{"title":"按任务号取回","description":"调用配置提供对应 thread_id，读取同一任务的进度。"}],
+    "example":{"title":"审批人隔几小时再回来","input":"图接入 SqliteSaver，任务编号为 release-042。","output":"进程退出后，新进程用同一数据库与任务编号找回待审批状态。","explanation":"保存组件还需要正确任务标识；身份授权与实际文件现场仍要另外核对。"},
+    "pitfalls":["只使用内存保存器不能据此声称跨进程持久恢复通过。","测试共用数据库和 thread_id 可能读到上次遗留状态。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 二、P1：主线最小版"},{"title":"第三章学习笔记","section":"3.6 五、P4：中断与恢复"},{"title":"第三章学习笔记","section":"3.6 八、三个实际工程坑"}]
+  },
+  {
+    "id":"thread-id", "term":"thread_id（图中一份独立任务的存档编号）", "aliases":["thread_id"], "chapters":["3.6"],
+    "plain":"让图知道该读哪一份任务进度的编号。同一任务继续使用同一个编号，不同任务要隔离；它不是操作系统线程，也不能证明谁有权批准。",
+    "analogy":{"title":"办事档案的受理号","description":"受理号帮助窗口找到你的档案，不能凭知道受理号就代替本人签字。thread_id 类似档案查找键，权限仍由可信身份和审批规则判断。比喻也不表示一个编号只能有一个进程读取。"},
+    "steps":[{"title":"给新任务编号","description":"独立任务分配独立 thread_id。"},{"title":"持续携带编号","description":"提交、查询状态和恢复都使用该任务配置。"},{"title":"额外校验权限","description":"批准前核对角色、操作内容和授权有效性。"}],
+    "example":{"title":"两条发布线互不串档","input":"服务 A 使用 release-A，服务 B 使用 release-B。","output":"各自查到自己的审批和灰度进度。","explanation":"若测试复用旧编号与旧数据库，可能把前一轮游标当作新任务状态，导致误判。"},
+    "pitfalls":["不要把 thread_id 当作操作系统线程号或授权令牌。","新的独立测试不能靠复用旧任务编号冒充从干净状态开始。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 五、P4：中断与恢复"},{"title":"第三章学习笔记","section":"3.6 八、三个实际工程坑"}]
+  },
+  {
+    "id":"command-resume", "term":"Command(resume)（把外部决定送回暂停的图）", "aliases":["Command(resume)","Command(resume=...)","恢复命令"], "chapters":["3.6"],
+    "plain":"在收到有效人工决定后，把决定交给已经暂停的图，让 interrupt 返回这个值并继续处理；不需要把最初任务重新提交一遍。",
+    "analogy":{"title":"凭原受理号补交决定","description":"申请暂停后，你带着正式签字去原窗口补材料，窗口继续处理同一申请。Command(resume) 像把补充决定送回去；它不是新的申请，也不是任何签字都算有效，入口仍要核对人和事项。"},
+    "steps":[{"title":"查原任务状态","description":"确认这份工单当前存在待处理的审批。"},{"title":"验证外部决定","description":"核对 actor、角色、待批内容与有效条件。"},{"title":"恢复同一任务","description":"用同一任务配置调用 Command(resume=decision)。"}],
+    "example":{"title":"技术负责人点击批准","input":"resume={'action':'approve','actor':'lead-1','feedback':'可以进入预发'}。","output":"原审批节点重跑，interrupt 取得决定，随后记录并路由。","explanation":"收到批准后才触发恢复；提交任务后立刻自动构造批准，会绕过真正人工确认。"},
+    "pitfalls":["不要重新提交原任务当作恢复，否则可能开出新一轮动作。","恢复命令负责传值，不替代批准身份和具体操作校验。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 五、P4：中断与恢复"}]
+  },
+  {
+    "id":"recursion-limit", "term":"recursion_limit（图执行步数的框架安全阀）", "aliases":["recursion_limit","GraphRecursionError"], "chapters":["3.6"],
+    "plain":"给图的执行推进设置兜底上限，防止一直走不出来。触发会报 GraphRecursionError；它不等于业务上的“最多修订两次”或“最多回滚一次”。",
+    "analogy":{"title":"电路保险丝不是营业时间表","description":"保险丝在异常时断开，不能替商店表达“每天晚上九点正常关门”。recursion_limit 类似兜底保护；业务预算需要计数和路由，正常结束时还要交代未完成原因。比喻只说明分工，不涉及相同计量单位。"},
+    "steps":[{"title":"设置业务计数","description":"分别记录修订次数、灰度重试次数及各自上限。"},{"title":"主动判断收尾","description":"达到业务上限时走 finalize 并保存结果。"},{"title":"保留框架兜底","description":"图意外持续推进时由 recursion_limit 暴露异常。"}],
+    "example":{"title":"最多两次修订","input":"revision_count 已达到 max_revisions。","output":"业务路由主动停止，返回明确未完成结论。","explanation":"不能简单把 recursion_limit 设为 2：一次修订可能经过多个节点，两种计数含义不同。"},
+    "pitfalls":["GraphRecursionError 是异常，不是正常发布收尾证据。","只给框架上限不等于已经实现业务预算。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 六、P5：循环与预算"}]
+  },
+  {
+    "id":"mermaid", "term":"Mermaid（用文本描述流程图）", "aliases":["Mermaid","draw_mermaid"], "chapters":["3.6"],
+    "plain":"用文本表示节点、箭头和分支，便于显示流程。本课从已编译的 LangGraph 图导出，减少手画图与真实代码不一致的情况。",
+    "analogy":{"title":"按实际公交线路自动出路线图","description":"公交站点或线路改了，地图也从同一份线路资料重新生成。Mermaid 类似展示这份路线的文字图稿。路线图只说明怎么连接，不代表今天每辆车都按时到站。"},
+    "steps":[{"title":"以实际图为来源","description":"从已经 compile 的图对象获取结构。"},{"title":"导出文本","description":"调用 draw_mermaid，将节点和边保存为文本。"},{"title":"查看分支","description":"利用明确的路由返回值标签核对线路。"}],
+    "example":{"title":"增加拒绝收尾路线","input":"代码新增审批拒绝到 finalize 的条件边。","output":"重新导出的图包含对应分支。","explanation":"这样不必单独手工维护每条箭头；实际拒绝是否阻止部署，仍要运行测试。"},
+    "pitfalls":["图画得正确不证明真实执行和审批正确。","PNG 导出可能依赖在线渲染；先保存 .mmd 文本能保留离线产物。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 七、P6：调试与可视化"}]
+  },
+  {
+    "id":"stream-updates", "term":"stream_mode=updates（逐步观察节点状态增量）", "aliases":["stream_mode=updates","stream_mode=\"updates\"","状态增量流"], "chapters":["3.6"],
+    "plain":"图每推进一步，就把哪个节点更新了哪些字段发出来，便于观察过程。它展示节点状态更新，不是模型逐字输出文本的那种流。",
+    "analogy":{"title":"物流每到一站发一条动态","description":"物流通知会说“已到分拨中心”或“等待补资料”，不必每次重发所有历史。updates 类似这些增量动态；一条通知缺少普通完成标记，也不代表这一站完全没进入，还可能中途等待处理。"},
+    "steps":[{"title":"启用更新流","description":"graph.stream 使用 stream_mode='updates'。"},{"title":"区分事件类型","description":"普通节点按节点名给出增量，中断使用 __interrupt__。"},{"title":"必要时查完整状态","description":"结合 get_state 定位待办节点和完整业务状态。"}],
+    "example":{"title":"审批节点停下来","input":"approval_m 运行到 interrupt。","output":"观察到 {'__interrupt__': [...]}，而非普通完成的 approval_m 增量。","explanation":"不能因为没看到普通节点键就断言它没有执行；应查看中断载荷和状态快照。"},
+    "pitfalls":["状态增量不是全部 State，也不是完整持久恢复记录。","中断事件应单独识别，不要误算成成功完成节点。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 七、P6：调试与可视化"}]
+  },
+  {
+    "id":"state-snapshot", "term":"StateSnapshot（查询图此刻状态的结果）", "aliases":["StateSnapshot"], "chapters":["3.6"],
+    "plain":"查询某个任务当前处境时得到的一份状态视图：values 是完整状态，next 是接下来节点，tasks 中可以找到中断等待处理信息。",
+    "analogy":{"title":"查看办事进度详情页","description":"详情页同时显示已有资料、下一窗口和待补材料，帮助你知道卡在哪里。StateSnapshot 类似这页查询结果。能看到进度不等于拥有审批权，也不能仅凭页面文字断定外部文件一定已写入。"},
+    "steps":[{"title":"定位任务","description":"用对应 thread_id 的配置调用 get_state。"},{"title":"查看整体资料","description":"values 提供当前完整 State，而非仅最近增量。"},{"title":"查看后续与中断","description":"检查 next、tasks 以及任务中的 interrupts。"}],
+    "example":{"title":"进程重启后问停在哪","input":"使用原任务配置调用 graph.get_state(cfg)。","output":"读取下一节点，并从 tasks 中取得待批载荷与 interrupt_id。","explanation":"这比猜测日志最后一行更直接；异步服务调用 aget_state 时要等待结果。"},
+    "pitfalls":["普通结构图展示路线，StateSnapshot 才查询某次任务的当前状态。","状态记录还需与真实执行事实核对，不能替代现场检查。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.6 七、P6：调试与可视化"}]
+  },
+  {
+    "id":"json-schema", "term":"JSON Schema（给工具参数写清填写规则）", "aliases":["JSON Schema"], "chapters":["3.7"],
+    "plain":"明确一个参数对象必须有什么字段、各字段是什么类型、范围多大、是否允许多填字段，让模型知道怎样填写，也让 Runtime 在执行前据此检查。",
+    "analogy":{"title":"申请表上的必填与格式要求","description":"申请表要求姓名必填、年龄填整数，能拦住漏填和格式错误；填得工整仍不代表有资格领取补贴。JSON Schema 像表单规则，权限、路径边界和真实文件存在需要其他检查。"},
+    "steps":[{"title":"从同一份定义展示","description":"模型看到的参数要求与执行校验版本保持一致。"},{"title":"执行前检查","description":"拦住缺 path、path 为数字或范围越界等结构错误。"},{"title":"反馈可修正错误","description":"返回具体字段、期望类型和执行未开始，再接收新调用。"}],
+    "example":{"title":"文件路径不能填数字","input":"read_file({path:42})。","output":"INVALID_ARGUMENT，说明 path 应为字符串，handler 调用次数为 0。","explanation":"返回错误还不够，必须确认读取没有发生；改成合法字符串后仍需检查权限与实际路径。"},
+    "pitfalls":["../../outside.txt 是字符串，Schema 通过不等于路径安全。","模型看到旧定义、执行层使用新规则，会造成契约漂移。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.7 四、让工具调用有契约"}]
+  },
+  {
+    "id":"context-budget", "term":"Context Budget（这一轮能交给模型多少材料）", "aliases":["Context Budget","上下文预算"], "chapters":["3.7"],
+    "plain":"控制单次请求携带的信息量，还要为模型输出留空间。它与整个任务能花多少 Token、费用、工具调用和时间的累计预算分开管理。",
+    "analogy":{"title":"每次会议带多少材料与项目总经费","description":"会议桌一次放得下的材料有限，项目总经费也有限。精简下一次会议资料能减少后续负担，却不会退回之前花掉的钱。上下文与累计预算就像这两种限制，计量和用途不能混用。"},
+    "steps":[{"title":"统计全部输入来源","description":"同时考虑系统提示、工具定义、目标、计划和工具观察。"},{"title":"留出输出空间","description":"使用限长、分段和历史摘要组织本轮信息。"},{"title":"单独累计整次消耗","description":"记录实际用量、调用与时间，达到任务上限明确停止。"}],
+    "example":{"title":"多轮读代码后的预算","input":"历史含长源码、测试日志和多份 Diff。","output":"本轮保留关键事实与引用，完整产物按需读取，累计已用 Token 保持原值。","explanation":"压缩改变后续请求长度，不改变过去真实发生的消耗。"},
+    "pitfalls":["字符数可用于长度上限，不能直接冒充精确 Token。","只计算工具输出会漏掉系统提示、工具定义等输入。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.7 五、控制上下文与预算"}]
+  },
+  {
+    "id":"truncation", "term":"Truncation（给单次工具结果限长并留补查入口）", "aliases":["Truncation","工具观察截断"], "chapters":["3.7"],
+    "plain":"工具输出太长时，只给模型必要信息与有限片段，明确说明有省略，并保留完整结果的受控引用，方便继续查证。",
+    "analogy":{"title":"检查报告先给异常摘要，原件还能查","description":"几百页检查资料先列异常项目、关键数值和页码，完整报告保存好。截断类似限制一次展示量；不能只取第一页的好消息，更不能让读者误以为已经看到全部资料。"},
+    "steps":[{"title":"保留关键状态","description":"测试结果优先留下退出码、超时与失败信息。"},{"title":"保存完整产物","description":"完整日志落到受控位置，模型观察附 output_ref。"},{"title":"标明省略并补读","description":"注明 truncated、实际范围，按需要读取其他片段。"}],
+    "example":{"title":"失败在日志中间","input":"十万字符日志中，第五万字符附近有失败断言。","output":"观察含失败名称、位置、预期与实际，truncated=true，并给完整日志引用。","explanation":"不能机械保留最前几百行，否则最重要的错误可能被删掉。"},
+    "pitfalls":["截断不是把未展示内容当作不存在。","提取失败时应保留有限首尾信息与补查入口，不能捏造完整摘要。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.7 五、控制上下文与预算"}]
+  },
+  {
+    "id":"compression", "term":"Compression（把旧步骤压成带依据的事实摘要）", "aliases":["Compression","历史压缩"], "chapters":["3.7"],
+    "plain":"不再每轮携带所有旧搜索与阅读全文，而是保留目标、限制、当前进度、关键事实和证据位置。摘要要说清做过什么、结果怎样、依据在哪、什么还没确定。",
+    "analogy":{"title":"给接班同事写交接单","description":"交接时不用朗读整天全部聊天，但必须写清未解决故障、哪些操作已做或不确定、检查针对哪个版本。历史压缩像交接单，不能把“怀疑坏了”改写成“已证实”，原始材料也应能找回。"},
+    "steps":[{"title":"保留持续约束","description":"目标、禁止事项、完成标准和当前计划不能丢。"},{"title":"整理事实与不确定项","description":"保留未解决失败、动作是否发生及验证对应版本。"},{"title":"保存引用和必要关联","description":"完整日志与 Diff 可补查，协议要求的调用和结果保持配对。"}],
+    "example":{"title":"旧测试通过后又改代码","input":"v1 已通过；随后应用 v2 补丁，尚未复测。","output":"摘要写明旧结果只对 v1 有效，当前 v2 待验证，并附两版证据引用。","explanation":"不能压缩成“测试已通过，可以交付”，否则下一轮会把旧证明套在新代码上。"},
+    "pitfalls":["等待审批、已应用、结果不明是不同状态，不能统写成已完成。","先做确定性结构化摘要，更容易保住退出码、路径、审批等关键字段。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.7 五、控制上下文与预算"}]
+  },
+  {
+    "id":"codebase-agent", "term":"Codebase Agent（围绕代码仓库完成任务的助手）", "aliases":["Codebase Agent","Codebase Agent v2"], "chapters":["3.7"],
+    "plain":"在限定的仓库范围内搜索、读代码、提出修改、运行检查，并依据真实结果继续工作的系统。本课用代码理解与测试修复两类任务验收它。",
+    "analogy":{"title":"拿着工单进场的维修人员","description":"维修人员先查看现场、查原因、提出方案，获准后动手，完工后还要检查效果。Codebase Agent 类似按证据办事的维修协作流程；模型提方案不代表拥有任意改动权限，也不保证每次诊断正确。"},
+    "steps":[{"title":"理解目标与范围","description":"装配任务配置、工作区、预算和完成标准。"},{"title":"探索并受控操作","description":"用搜索、读取、测试和补丁工具取得事实、修正方案。"},{"title":"核对交付证据","description":"检查实际文档、源码 Diff 与当前版本测试，再说明结果。"}],
+    "example":{"title":"修复会话到期判断","input":"已有三条失败测试，要求修源码且不改现有测试。","output":"保留失败基线，获批后改源码，复测并给出当前 Diff 与验证说明。","explanation":"模型说修好了只是建议结束，系统仍要验证真实产物与改动范围。"},
+    "pitfalls":["Agent 工程是执行系统，样本仓库是被操作对象。","离线脚本走通工具路径不等于真实模型任务能力验收通过。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.7 一、项目目标与能力盘点"},{"title":"第三章学习笔记","section":"3.7 二、先跑通两类任务"}]
+  },
+  {
+    "id":"evaluation-report", "term":"评估报告（把执行情况与验收证据分开说明）", "aliases":["评估报告","自动评估报告"], "chapters":["3.7"],
+    "plain":"汇总这次任务怎样运行、是否真正达到要求、证据在哪里、花了多少资源以及哪些能力还没验证。程序结束和验收通过必须分别记录。",
+    "analogy":{"title":"维修工单加验收单","description":"工人下班说明今天操作结束，验收单才说明东西是否修好、检查了哪些项目。评估报告把这两种信息放在一起但不混淆。报告需要事实支撑，漂亮排版不能替代真实检查。"},
+    "steps":[{"title":"标识这次运行","description":"写任务名称、Run ID，以及真实模型或离线脚本等决策来源。"},{"title":"对照交付条件","description":"核对产物、当前测试、Diff 与授权范围，给出验收结论。"},{"title":"留下复核信息","description":"附日志引用、调用审批次数、耗时用量、停止原因和未覆盖项。"}],
+    "example":{"title":"进程结束但文档没有生成","input":"Agent 正常退出，目标报告路径却不存在。","output":"执行已结束；文档交付验收失败；报告列出缺失产物与复核位置。","explanation":"不能把退出码或口头声明直接映射成任务完成，待审批也不能记成成功。"},
+    "pitfalls":["修好预置失败测试不自动证明能生成有效新测试。","一次真实成功仅是样本证据，稳定成功率需要固定任务集与多次数据。"],
+    "sources":[{"title":"第三章学习笔记","section":"3.7 六、按用户旅程安排人工确认"},{"title":"第三章学习笔记","section":"3.7 八、验收与工程复盘"}]
+  }
+]
