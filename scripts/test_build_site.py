@@ -31,6 +31,7 @@ def fixture(root: Path) -> None:
         (notes / name).write_text('学习资料', encoding='utf-8')
     pages = {
         'chapter-one.html': chapter_page(1, [10] * 7),
+        'chapter-four.html': chapter_page(4, [20, 12, 15, 20, 14, 17]),
         'chapter-two.html': chapter_page(2, [14, 14, 14, 16, 15]),
         'chapter-three.html': chapter_page(3, [15, 16, 14, 17, 15, 18, 20], {'c7-s39': 'quiz-7-11'}),
     }
@@ -38,6 +39,7 @@ def fixture(root: Path) -> None:
         (notes / name).write_text(text, encoding='utf-8')
     (notes / 'index.html').write_text('<a href="../index.html">课程首页</a>', encoding='utf-8')
     (root / 'public-index.html').write_text(
+        '<a href="可视化页面/chapter-four.html#quiz-6-17">第四章原题</a>'
         '<a href="可视化页面/chapter-one.html#quiz-7-10">第一章</a>'
         '<a href="可视化页面/chapter-two.html#quiz-1-14">第二章原题</a>'
         '<a href="可视化页面/chapter-three.html#quiz-7-20">第三章原题</a>'
@@ -59,12 +61,12 @@ def fixture(root: Path) -> None:
 
 
 class PublicBuildTests(unittest.TestCase):
-    def test_three_chapters_publish_only_explicit_files_and_valid_routes(self):
+    def test_four_chapters_publish_only_explicit_files_and_valid_routes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fixture(root)
             report = build_site.build(root)
-            self.assertEqual(report['chapters'], 3)
+            self.assertEqual(report['chapters'], 4)
             self.assertEqual(report['videos'], 6)
             published_notes = root / '_site' / build_site.NOTES_DIR
             self.assertEqual({path.name for path in published_notes.iterdir()},
@@ -88,6 +90,15 @@ class PublicBuildTests(unittest.TestCase):
         parser.feed(chapter_page(3, [10], {'c1-s39': 'quiz-1-11'}))
         with self.assertRaisesRegex(ValueError, 'redirect target is missing'):
             parser.quiz_routes()
+
+    def test_fourth_chapter_rejects_question_outside_its_actual_bank(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fixture(root)
+            (root / 'public-index.html').write_text(
+                '<a href="可视化页面/chapter-four.html#quiz-6-18">不存在的题</a>', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'Unknown page fragment'):
+                build_site.build(root)
 
     def test_private_output_file_cannot_survive_a_rebuild(self):
         with tempfile.TemporaryDirectory() as directory:

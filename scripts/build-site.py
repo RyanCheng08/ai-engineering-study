@@ -24,11 +24,14 @@ NOTE_FILES = (
     'chapter-two.html',
     '第二章测试题-题目版.txt',
     '第二章测试题-答案解析.txt',
+    'chapter-four.html',
+    '第四章测试题-题目版.txt',
+    '第四章测试题-答案解析.txt',
     'chapter-three.html',
     '第三章测试题-题目版.txt',
     '第三章测试题-答案解析.txt',
 )
-CHAPTER_PAGES = {'chapter-one.html', 'chapter-two.html', 'chapter-three.html'}
+CHAPTER_PAGES = {'chapter-one.html', 'chapter-two.html', 'chapter-three.html', 'chapter-four.html'}
 MEDIA_SUFFIXES = {'.mp4', '.vtt', '.srt', '.jpg', '.png'}
 PRIVATE_PATTERNS = (b'internal-api-drive-stream', b'authcode/?code=')
 ANCHOR = re.compile(r'<a\b[^>]*>.*?</a\s*>', re.IGNORECASE | re.DOTALL)

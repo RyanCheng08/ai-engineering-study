@@ -41,7 +41,9 @@ jobs:
         run: npm run build:chapter-two
       - name: Build chapter three notes and merged exercises
         run: npm run build:chapter-three
-      - name: Verify chapter two and three content and links
+      - name: Build chapter four notes and merged exercises
+        run: npm run build:chapter-four
+      - name: Verify chapter two through four content and links
         run: npm run verify
       - name: Assemble and validate public files
         run: npm run build:site

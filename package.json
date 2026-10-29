@@ -2,7 +2,7 @@
   "name": "ai-engineering-study",
   "version": "1.0.0",
   "private": true,
-  "description": "AI 工程学习中心：第一至第三章笔记、自测、经典问题收藏及第一章讲解视频",
+  "description": "AI 工程学习中心：第一至第四章笔记、自测、经典问题收藏及第一章讲解视频",
   "type": "module",
   "scripts": {
     "test:file-store": "node tests/file-store.test.cjs",
@@ -14,9 +14,11 @@
     "build:chapter-three": "node 可视化页面/build-chapter-three.mjs",
     "verify:chapter-two": "node 可视化页面/第二章资源/verify-chapter-two.mjs",
     "verify:chapter-three": "node 可视化页面/第三章资源/verify-chapter-three.mjs",
-    "verify": "npm run verify:chapter-two && npm run verify:chapter-three",
+    "verify": "npm run verify:chapter-two && npm run verify:chapter-three && npm run verify:chapter-four",
     "build:site": "python scripts/build-site.py",
-    "build": "npm run build:chapter-one && npm run build:chapter-two && npm run build:chapter-three && npm run verify && npm run build:site"
+    "build": "npm run build:chapter-one && npm run build:chapter-two && npm run build:chapter-three && npm run build:chapter-four && npm run verify && npm run build:site",
+    "build:chapter-four": "node 可视化页面/build-chapter-four.mjs",
+    "verify:chapter-four": "node 可视化页面/第四章资源/verify-chapter-four.mjs"
   },
   "engines": {
     "node": ">=20"
